@@ -13,6 +13,7 @@ athenadef is a Rust CLI tool for AWS Athena schema management. It allows users t
 - **AWS Integration**: Uses AWS SDK for Athena and S3 operations
 - **File Structure**: SQL files organized as `database_name/table_name.sql`
 - **Configuration**: YAML-based configuration (`athenadef.yaml`)
+- **SQL Validation**: Delegates all SQL parsing and validation to AWS Athena (no local SQL parsing)
 
 ## Commands Structure
 
@@ -21,6 +22,11 @@ The tool provides these main commands:
 - `plan`: Preview configuration changes  
 - `export`: Export existing table definitions to local files
 - `help`: Display help information
+
+All commands support the `--target` option to filter tables using `<database>.<table>` format:
+- `--target salesdb.customers` (specific table)
+- `--target salesdb.*` (all tables in database) 
+- `--target *.customers` (tables with name across databases)
 
 ## Development Commands
 
@@ -73,3 +79,14 @@ The tool requires specific IAM permissions for:
 - Available via Homebrew: `brew install rieshia/x/athenadef`
 - GitHub releases with compiled binaries
 - GitHub Action available: `riseshia/athenadef@v0`
+
+## Detailed Documentation
+
+For comprehensive design and implementation details, refer to the documentation in `docs/`:
+
+- **`docs/architecture.md`**: システム全体のアーキテクチャ設計、コンポーネント構成、データフロー
+- **`docs/specification.md`**: 完全な仕様書（コマンド、ファイル構造、設定、エラーハンドリング、パフォーマンス、セキュリティ）
+- **`docs/technical-design.md`**: コアデータ構造、差分計算アルゴリズム、AWS統合の技術設計
+- **`docs/implementation-plan.md`**: 12週間の段階的実装計画とマイルストーン
+
+These documents contain essential information for understanding the project structure, making design decisions, and implementing new features.
