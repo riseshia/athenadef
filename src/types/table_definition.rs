@@ -1,0 +1,1 @@
+// Table definition types placeholder
