@@ -58,18 +58,24 @@ OPTIONS:
 Plan: 2 to add, 1 to change, 0 to destroy.
 
 + salesdb.new_customers
-  Will create table with:
-  + Column: customer_id (bigint)
-  + Column: name (string)
-  + Column: email (string)
-  + Partition: year (string)
-  + Location: s3://data-bucket/customers/
+  Will create table
 
 ~ marketingdb.leads
-  Will update table:
-  ~ Column: score (int → double)
-  + Column: created_at (timestamp)
-  ~ Property: projection.enabled (false → true)
+  Will update table
+--- remote: marketingdb.leads
++++ local:  marketingdb.leads
+ CREATE EXTERNAL TABLE leads (
+-    score int,
++    score double,
++    created_at timestamp,
+     email string
+ )
+ STORED AS PARQUET
+ LOCATION 's3://data-bucket/leads/'
+ TBLPROPERTIES (
+-    'projection.enabled' = 'false'
++    'projection.enabled' = 'true'
+ );
 
 - salesdb.old_orders
   Will destroy table
@@ -241,29 +247,34 @@ export ATHENADEF_DEBUG="true"
 
 ## 5. Diff Detection
 
-### 5.1 Detection Scope
+### 5.1 Detection Strategy
 
-The following elements are compared for differences:
+athenadef uses a simple text-based diff approach:
 
-1. **Table Existence**: Creation and deletion
-2. **Column Definition**: Type, name, and comment changes
-3. **Partition Definition**: Partition key changes
-4. **Storage Settings**: STORED AS, LOCATION, etc.
-5. **Table Properties**: TBLPROPERTIES changes
+1. **Table Existence**: Detect table creation and deletion by comparing local SQL files with remote tables
+2. **SQL Comparison**: For existing tables, compare the normalized SQL DDL between remote (from `SHOW CREATE TABLE`) and local (from SQL files)
+3. **Text Diff**: Display unified diff of SQL statements for changes
 
 ### 5.2 Diff Display Format
 
 ```
-+ New addition
-~ Change  
-- Deletion
++ New addition (table will be created)
+~ Change (SQL diff shown below)
+- Deletion (table will be destroyed)
   (unchanged) No changes (only shown with --show-unchanged)
 ```
 
-### 5.3 Limitations
+For updates (`~`), a unified diff of the SQL DDL is displayed:
+- Lines starting with `-` indicate removed content (from remote)
+- Lines starting with `+` indicate added content (from local)
+- Lines starting with ` ` indicate unchanged content
 
-- Column order changes are not detected
-- Some table property changes require drop and recreate
+### 5.3 Implementation Notes
+
+- No complex schema parsing or field-by-field comparison
+- Delegates all SQL validation to AWS Athena
+- Simple and maintainable approach inspired by git diff
+- SQL normalization may be applied for consistent comparison
 
 ## 6. Error Handling
 

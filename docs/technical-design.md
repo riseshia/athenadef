@@ -62,7 +62,7 @@ pub struct TableDiff {
     pub database_name: String,
     pub table_name: String,
     pub operation: DiffOperation,
-    pub changes: Vec<Change>,
+    pub text_diff: Option<String>,  // Unified diff text for updates
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -71,18 +71,6 @@ pub enum DiffOperation {
     Update,
     Delete,
     NoChange,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum Change {
-    AddColumn(ColumnDefinition),
-    RemoveColumn(String),
-    ChangeColumn { old: ColumnDefinition, new: ColumnDefinition },
-    AddPartition(PartitionDefinition),
-    RemovePartition(String),
-    ChangePartition { old: PartitionDefinition, new: PartitionDefinition },
-    ChangeLocation { old: Option<String>, new: Option<String> },
-    ChangeProperty { key: String, old: Option<String>, new: Option<String> },
 }
 ```
 
@@ -229,108 +217,141 @@ This policy enables:
 
 ### 4.1 Differ Implementation
 
+**Simple Text-Based Diff Approach:**
+
 ```rust
+use similar::{ChangeTag, TextDiff};
+
 pub struct Differ {
     context: Arc<AthendefContext>,
 }
 
 impl Differ {
-    pub async fn calculate_diff(&self, local_tables: Vec<TableDefinition>) -> Result<DiffResult> {
-        let current_tables = self.get_current_tables().await?;
+    pub async fn calculate_diff(
+        &self,
+        local_sql_files: HashMap<String, String>,  // key: "db.table", value: SQL content
+    ) -> Result<DiffResult> {
+        let remote_tables = self.get_remote_table_list().await?;
         let mut table_diffs = Vec::new();
-        
-        // Create a map for quick lookup
-        let current_map: HashMap<String, &TableDefinition> = current_tables
-            .iter()
-            .map(|t| (format!("{}.{}", t.database_name, t.table_name), t))
-            .collect();
-        
-        let local_map: HashMap<String, &TableDefinition> = local_tables
-            .iter()
-            .map(|t| (format!("{}.{}", t.database_name, t.table_name), t))
-            .collect();
-        
-        // Find tables to create
-        for (table_key, local_table) in &local_map {
-            if !current_map.contains_key(table_key) {
+
+        // Find tables to create (in local, not in remote)
+        for (table_key, local_sql) in &local_sql_files {
+            if !remote_tables.contains_key(table_key) {
+                let (db, table) = parse_table_key(table_key)?;
                 table_diffs.push(TableDiff {
-                    database_name: local_table.database_name.clone(),
-                    table_name: local_table.table_name.clone(),
+                    database_name: db,
+                    table_name: table,
                     operation: DiffOperation::Create,
-                    changes: vec![],
+                    text_diff: None,
                 });
             }
         }
-        
-        // Find tables to delete
-        for (table_key, current_table) in &current_map {
-            if !local_map.contains_key(table_key) {
+
+        // Find tables to delete (in remote, not in local)
+        for table_key in remote_tables.keys() {
+            if !local_sql_files.contains_key(table_key) {
+                let (db, table) = parse_table_key(table_key)?;
                 table_diffs.push(TableDiff {
-                    database_name: current_table.database_name.clone(),
-                    table_name: current_table.table_name.clone(),
+                    database_name: db,
+                    table_name: table,
                     operation: DiffOperation::Delete,
-                    changes: vec![],
+                    text_diff: None,
                 });
             }
         }
-        
-        // Find tables to update
-        for (table_key, local_table) in &local_map {
-            if let Some(current_table) = current_map.get(table_key) {
-                let changes = self.calculate_table_changes(current_table, local_table);
-                if !changes.is_empty() {
+
+        // Find tables to update (compare SQL text)
+        for (table_key, local_sql) in &local_sql_files {
+            if let Some(remote_sql) = remote_tables.get(table_key) {
+                let normalized_remote = normalize_sql(remote_sql);
+                let normalized_local = normalize_sql(local_sql);
+
+                if normalized_remote != normalized_local {
+                    let text_diff = self.format_sql_diff(
+                        table_key,
+                        &normalized_remote,
+                        &normalized_local,
+                    );
+                    let (db, table) = parse_table_key(table_key)?;
                     table_diffs.push(TableDiff {
-                        database_name: local_table.database_name.clone(),
-                        table_name: local_table.table_name.clone(),
+                        database_name: db,
+                        table_name: table,
                         operation: DiffOperation::Update,
-                        changes,
+                        text_diff: Some(text_diff),
                     });
                 }
             }
         }
-        
+
         let summary = DiffSummary {
             to_add: table_diffs.iter().filter(|d| d.operation == DiffOperation::Create).count(),
             to_change: table_diffs.iter().filter(|d| d.operation == DiffOperation::Update).count(),
             to_destroy: table_diffs.iter().filter(|d| d.operation == DiffOperation::Delete).count(),
         };
-        
+
         Ok(DiffResult {
             no_change: summary.to_add == 0 && summary.to_change == 0 && summary.to_destroy == 0,
             summary,
             table_diffs,
         })
     }
-    
-    fn calculate_table_changes(
-        &self,
-        current: &TableDefinition,
-        local: &TableDefinition,
-    ) -> Vec<Change> {
-        let mut changes = Vec::new();
-        
-        // Compare columns
-        changes.extend(self.compare_columns(&current.columns, &local.columns));
-        
-        // Compare partitions
-        changes.extend(self.compare_partitions(&current.partitions, &local.partitions));
-        
-        // Compare storage descriptor
-        changes.extend(self.compare_storage_descriptor(
-            &current.storage_descriptor,
-            &local.storage_descriptor,
-        ));
-        
-        // Compare table properties
-        changes.extend(self.compare_properties(
-            &current.table_properties,
-            &local.table_properties,
-        ));
-        
-        changes
+
+    async fn get_remote_table_list(&self) -> Result<HashMap<String, String>> {
+        // Get all tables using Glue API
+        // For each table, execute "SHOW CREATE TABLE" to get SQL DDL
+        // Return map of "db.table" -> SQL string
+        todo!()
+    }
+
+    fn format_sql_diff(&self, table_name: &str, remote: &str, local: &str) -> String {
+        let diff = TextDiff::from_lines(remote, local);
+        let mut buffer = String::new();
+
+        buffer.push_str(&format!("--- remote: {}\n", table_name));
+        buffer.push_str(&format!("+++ local:  {}\n", table_name));
+
+        for hunk in diff.unified_diff().missing_newline_hint(true).iter_hunks() {
+            for change in hunk.iter_changes() {
+                let sign = match change.tag() {
+                    ChangeTag::Insert => "+",
+                    ChangeTag::Equal => " ",
+                    ChangeTag::Delete => "-",
+                };
+                buffer.push_str(&format!("{}{}", sign, change));
+            }
+        }
+
+        buffer
     }
 }
+
+/// Normalize SQL for consistent comparison
+/// - Trim whitespace
+/// - Standardize line endings
+/// - Optional: sort TBLPROPERTIES for consistent order
+fn normalize_sql(sql: &str) -> String {
+    sql.trim()
+        .lines()
+        .map(|line| line.trim())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn parse_table_key(key: &str) -> Result<(String, String)> {
+    let parts: Vec<&str> = key.split('.').collect();
+    if parts.len() != 2 {
+        bail!("Invalid table key format: {}", key);
+    }
+    Ok((parts[0].to_string(), parts[1].to_string()))
+}
 ```
+
+### 4.2 Key Design Decisions
+
+1. **No Schema Parsing**: Read SQL files as strings, compare as text
+2. **Simple Diff**: Use `similar` crate for unified diff (like git diff)
+3. **Normalization**: Apply minimal normalization for consistent comparison
+4. **Athena Validation**: Delegate all SQL validation to Athena during apply
 
 ## 5. AWS Integration Patterns
 

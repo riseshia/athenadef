@@ -42,16 +42,25 @@ It applies the concept of declarative infrastructure management like Terraform t
 ## Data Flow
 
 ```
-SQL Files (database/table.sql)
+Local SQL Files (database/table.sql)
     ↓
 File Reader (read as string)
     ↓
-Differ Engine ← Current State (from Athena DESCRIBE TABLE)
+                    Remote SQL (from SHOW CREATE TABLE)
+                            ↓
+Differ Engine ← Text Comparison (using similar crate)
     ↓
-Diff Result
+Diff Result (with unified diff text)
     ↓
-Command Executor → Athena API (SQL execution and validation delegated to Athena)
+Command Executor → Athena API (DDL execution)
 ```
+
+**Key Design Philosophy:**
+- Simple text-based diff (no complex schema parsing)
+- Read local SQL files as-is
+- Get remote DDL via `SHOW CREATE TABLE`
+- Compare normalized SQL text
+- Display unified diff (like git diff)
 
 ## Directory Structure
 
