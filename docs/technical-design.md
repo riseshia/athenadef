@@ -92,7 +92,7 @@ pub enum Change {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub workgroup: String,
-    pub output_location: String,
+    pub output_location: Option<String>,  // Optional: None uses AWS managed storage
     pub region: Option<String>,
     pub database_prefix: Option<String>,
     pub query_timeout_seconds: Option<u64>,
@@ -103,7 +103,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             workgroup: "primary".to_string(),
-            output_location: String::new(),
+            output_location: None,  // Default to managed storage
             region: None,
             database_prefix: None,
             query_timeout_seconds: Some(300),
@@ -341,7 +341,7 @@ pub struct QueryExecutor {
     athena_client: aws_sdk_athena::Client,
     s3_client: aws_sdk_s3::Client,
     workgroup: String,
-    output_location: String,
+    output_location: Option<String>,  // None uses AWS managed storage
 }
 
 impl QueryExecutor {
@@ -350,20 +350,25 @@ impl QueryExecutor {
         self.wait_for_completion(&execution_id).await?;
         self.get_query_results(&execution_id).await
     }
-    
+
     async fn start_query_execution(&self, query: &str) -> Result<String> {
-        let response = self.athena_client
+        let mut request = self.athena_client
             .start_query_execution()
             .query_string(query)
-            .work_group(&self.workgroup)
-            .result_configuration(
+            .work_group(&self.workgroup);
+
+        // Only set result_configuration if output_location is specified
+        // Otherwise, use workgroup's managed storage settings
+        if let Some(location) = &self.output_location {
+            request = request.result_configuration(
                 aws_sdk_athena::types::ResultConfiguration::builder()
-                    .output_location(&self.output_location)
+                    .output_location(location)
                     .build()
-            )
-            .send()
-            .await?;
-        
+            );
+        }
+
+        let response = request.send().await?;
+
         response.query_execution_id()
             .ok_or_else(|| anyhow::anyhow!("No query execution ID returned"))
             .map(|s| s.to_string())

@@ -203,7 +203,10 @@ The tool expects an `athenadef.yaml` configuration file:
 # Required: Athena workgroup to use
 workgroup: "primary"
 
-# Required: S3 location for query results  
+# Optional: S3 location for query results
+# If not specified, uses AWS managed storage (recommended for simplicity)
+# Managed storage: automatically managed, 24-hour retention, encrypted
+# S3 bucket: full control, custom retention, requires S3 permissions
 output_location: "s3://athena-results-bucket/athenadef/"
 
 # Optional: AWS region (uses default from AWS config if not specified)
@@ -228,7 +231,7 @@ Configuration can also be provided via environment variables:
 
 ```bash
 export ATHENADEF_WORKGROUP="primary"
-export ATHENADEF_OUTPUT_LOCATION="s3://results/"
+export ATHENADEF_OUTPUT_LOCATION="s3://results/"  # Optional: omit to use managed storage
 export ATHENADEF_REGION="us-west-2"
 export ATHENADEF_DATABASE_PREFIX="dev_"
 export ATHENADEF_QUERY_TIMEOUT_SECONDS="300"
@@ -275,12 +278,12 @@ The following elements are compared for differences:
 **Configuration Errors:**
 ```
 Error: Configuration error
-  ↳ Missing required field 'output_location' in athenadef.yaml
-  ↳ Hint: Add 'output_location: "s3://your-bucket/path/"' to your config
+  ↳ Missing required field 'workgroup' in athenadef.yaml
+  ↳ Hint: Add 'workgroup: "primary"' to your config
 
-Error: Configuration error  
+Error: Configuration error
   ↳ Invalid S3 path: 'invalid-s3-path'
-  ↳ Hint: S3 paths must start with 's3://'
+  ↳ Hint: S3 paths must start with 's3://' (or omit to use managed storage)
 ```
 
 **SQL Syntax Errors (from Athena):**
@@ -341,6 +344,8 @@ Error: File not found
 
 ### 8.1 Required IAM Permissions
 
+**Minimum permissions (using managed storage):**
+
 ```json
 {
   "Version": "2012-10-17",
@@ -369,7 +374,17 @@ Error: File not found
         "glue:DeleteTable"
       ],
       "Resource": "*"
-    },
+    }
+  ]
+}
+```
+
+**Additional permissions (when using S3 bucket for query results):**
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
     {
       "Effect": "Allow",
       "Action": [
@@ -386,6 +401,8 @@ Error: File not found
   ]
 }
 ```
+
+**Note:** S3 permissions are only required when `output_location` is specified in the configuration. When using AWS managed storage (default), S3 permissions for query results are not needed.
 
 ### 8.2 Security Considerations
 

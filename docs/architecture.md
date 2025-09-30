@@ -87,10 +87,14 @@ YAML-based configuration file (`athenadef.yaml`):
 
 ```yaml
 workgroup: "primary"
-output_location: "s3://your-athena-results-bucket/prefix/"
+output_location: "s3://your-athena-results-bucket/prefix/"  # Optional: omit to use managed storage
 region: "us-west-2"  # Optional
 database_prefix: ""  # Optional
 ```
+
+**Query Result Storage Options:**
+- **Managed Storage (default)**: AWS-managed, automatic cleanup after 24 hours, no S3 permissions required
+- **S3 Bucket**: Custom location, full control over retention, requires S3 permissions
 
 ## Error Handling
 

@@ -56,7 +56,7 @@ cargo clippy
 
 The tool expects an `athenadef.yaml` configuration file with:
 - `workgroup`: Athena workgroup (optional, defaults to "primary")
-- `output_location`: S3 location for query results (optional)
+- `output_location`: S3 location for query results (optional, uses AWS managed storage if not specified)
 
 ## Directory Structure for Schema Files
 
@@ -72,7 +72,8 @@ Each SQL file contains DDL for the corresponding table.
 
 The tool requires specific IAM permissions for:
 - Athena query operations (StartQueryExecution, GetQueryExecution, etc.)
-- S3 bucket access for query results storage
+- Glue catalog operations (GetDatabase, GetTable, CreateTable, UpdateTable, DeleteTable)
+- S3 bucket access for query results storage (only when `output_location` is specified; not needed with managed storage)
 
 ## Distribution
 
