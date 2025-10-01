@@ -133,6 +133,9 @@ jobs:
           # Remove lines containing the closed issue reference
           updated_body=$(echo "$master_body" | grep -v "#${issue_num}\b" || echo "$master_body")
 
+          # Update master issue with the modified body
+          gh issue edit $master_issue --body "$updated_body"
+
       - name: Update issue on failure
         if: steps.pick_issue.outputs.has_issue == 'true' && failure()
         run: |
