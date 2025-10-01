@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Status of a query execution
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum QueryExecutionStatus {
     Queued,
     Running,
