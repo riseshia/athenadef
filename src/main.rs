@@ -1,10 +1,6 @@
 use anyhow::Result;
+use athenadef::cli::Cli;
 use clap::Parser;
-
-mod cli;
-mod commands;
-
-use cli::Cli;
 
 #[tokio::main]
 async fn main() -> Result<()> {

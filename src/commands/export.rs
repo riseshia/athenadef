@@ -1,6 +1,8 @@
 use anyhow::Result;
 use tracing::info;
 
+use crate::types::config::Config;
+
 /// Execute the export command
 pub async fn execute(
     config_path: &str,
@@ -8,14 +10,27 @@ pub async fn execute(
     overwrite: bool,
     format: &str,
 ) -> Result<()> {
-    info!("Executing export command");
-    info!("Config file: {}", config_path);
-    info!("Targets: {:?}", targets);
+    info!("Starting athenadef export");
+    info!("Loading configuration from {}", config_path);
+
+    // Load and validate configuration
+    let config = Config::load_from_path(config_path)?;
+
+    info!("Configuration loaded successfully");
+    info!("Workgroup: {}", config.workgroup);
+    if let Some(ref output_location) = config.output_location {
+        info!("Output location: {}", output_location);
+    } else {
+        info!("Output location: AWS managed storage");
+    }
+
+    if !targets.is_empty() {
+        info!("Targets: {:?}", targets);
+    }
     info!("Overwrite: {}", overwrite);
     info!("Format: {}", format);
 
     // TODO: Implement actual export logic
-    // 1. Load configuration from config_path
     // 2. Fetch table definitions from AWS Athena/Glue
     // 3. Filter tables based on targets
     // 4. Generate SQL files for each table
@@ -31,29 +46,59 @@ pub async fn execute(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    fn create_test_config() -> NamedTempFile {
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(b"workgroup: \"test-workgroup\"\n").unwrap();
+        file
+    }
 
     #[tokio::test]
     async fn test_export_command_executes() {
-        let result = execute("test.yaml", &[], false, "standard").await;
+        let config_file = create_test_config();
+        let result = execute(config_file.path().to_str().unwrap(), &[], false, "standard").await;
         assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn test_export_command_with_overwrite() {
-        let result = execute("test.yaml", &[], true, "standard").await;
+        let config_file = create_test_config();
+        let result = execute(config_file.path().to_str().unwrap(), &[], true, "standard").await;
         assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn test_export_command_with_format() {
-        let result = execute("test.yaml", &[], false, "partitioned").await;
+        let config_file = create_test_config();
+        let result = execute(
+            config_file.path().to_str().unwrap(),
+            &[],
+            false,
+            "partitioned",
+        )
+        .await;
         assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn test_export_command_with_targets() {
+        let config_file = create_test_config();
         let targets = vec!["db.table".to_string()];
-        let result = execute("test.yaml", &targets, false, "standard").await;
+        let result = execute(
+            config_file.path().to_str().unwrap(),
+            &targets,
+            false,
+            "standard",
+        )
+        .await;
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_export_command_invalid_config() {
+        let result = execute("nonexistent.yaml", &[], false, "standard").await;
+        assert!(result.is_err());
     }
 }
