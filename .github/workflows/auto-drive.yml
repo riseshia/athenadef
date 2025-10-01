@@ -2,7 +2,7 @@ name: Auto drive
 
 on:
   schedule:
-    - cron: '0 * * * *'
+    - cron: '10 * * * *'
   workflow_dispatch:
 
 env:
@@ -99,6 +99,50 @@ jobs:
             4. Run tests to verify changes (if applicable)
             5. Refactor code to make it cleaner & keep test green
             6. Handle code quality (lint, format)
-            7. Commit changes with proper commit message & push
+            7. Commit changes with proper commit message
 
-            Notes: Do not create a PR, just commit & push to main branch.
+            Always summarize at exit what you did into `/tmp/summary`.
+
+            Notes: Do not create a PR, just commit.
+
+      - name: Push changes
+        if: steps.pick_issue.outputs.has_issue == 'true'
+        id: push
+        run: |
+          git push origin main
+
+      - name: Update issue on success
+        if: steps.pick_issue.outputs.has_issue == 'true' && success()
+        run: |
+          issue_num=${{ steps.pick_issue.outputs.issue_number }}
+          gh issue comment $issue_num --body "$(cat /tmp/summary)"
+          gh issue edit $issue_num --remove-label "in-progress" || true
+          gh issue close $issue_num
+
+          master_issue=${{ env.MASTER_ISSUE }}
+
+          echo "🗑️ Issue #$issue_num was closed, removing from master issue #$master_issue"
+
+          # Get current master issue body
+          master_body=$(gh issue view $master_issue --json body -q '.body' 2>/dev/null || echo "")
+
+          # Remove lines containing the closed issue reference
+          updated_body=$(echo "$master_body" | grep -v "#${issue_num}\b" || echo "$master_body")
+
+          # Update master issue if content changed
+          if [ "$master_body" != "$updated_body" ]; then
+            echo "$updated_body" | gh issue edit $master_issue --body-file -
+            gh issue comment $master_issue --body "🎉 Issue #${issue_num} completed and removed from todo list"
+            echo "✅ Removed issue #$issue_num from master issue"
+          else
+            echo "ℹ️ Issue #$issue_num was not found in master issue"
+          fi
+
+      - name: Update issue on failure
+        if: steps.pick_issue.outputs.has_issue == 'true' && failure()
+        run: |
+          issue_num=${{ steps.pick_issue.outputs.issue_number }}
+
+          gh issue comment $issue_num --body "$(cat /tmp/summary)"
+          gh issue comment $issue_num --body "❌ There was some error.\n\nWorkflow url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          gh issue edit $issue_num --remove-label "in-progress" || true
