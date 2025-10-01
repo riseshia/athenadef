@@ -26,11 +26,21 @@ impl Default for Config {
 impl Config {
     /// Load configuration from a YAML file
     pub fn load_from_path(path: &str) -> anyhow::Result<Self> {
-        let content = std::fs::read_to_string(path)
-            .map_err(|e| anyhow::anyhow!("Failed to read config file '{}': {}", path, e))?;
+        let content = std::fs::read_to_string(path).map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to read config file '{}': {}\n\nMake sure the file exists and you have read permissions.\nYou can specify a custom config file with: --config <path>",
+                path,
+                e
+            )
+        })?;
 
-        let config: Config = serde_yaml::from_str(&content)
-            .map_err(|e| anyhow::anyhow!("Failed to parse YAML configuration: {}", e))?;
+        let config: Config = serde_yaml::from_str(&content).map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to parse YAML configuration: {}\n\nCheck that your {} file has valid YAML syntax.\n\nExample minimal configuration:\n  workgroup: \"primary\"",
+                e,
+                path
+            )
+        })?;
 
         let config = config.with_defaults();
         config.validate()?;

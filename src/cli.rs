@@ -26,32 +26,75 @@ pub struct Cli {
 #[derive(Subcommand, Debug)]
 pub enum Commands {
     /// Preview configuration changes
+    ///
+    /// Calculates the differences between your local schema definitions and the current state
+    /// in AWS Athena, displaying what changes would be made without executing them.
+    ///
+    /// Examples:
+    ///   athenadef plan
+    ///   athenadef plan --target salesdb.customers
+    ///   athenadef plan --json > changes.json
     Plan {
         /// Show tables with no changes
+        ///
+        /// By default, only tables with changes are displayed. Use this flag to also show
+        /// tables that match the remote state.
         #[arg(long)]
         show_unchanged: bool,
 
         /// Output in JSON format
+        ///
+        /// Outputs the diff result as structured JSON instead of human-readable text.
+        /// Useful for programmatic processing or integration with other tools.
         #[arg(long)]
         json: bool,
     },
     /// Apply configuration changes
+    ///
+    /// Executes the changes needed to make your AWS Athena schema match your local definitions.
+    /// This will create, update, or delete tables as needed. By default, prompts for confirmation
+    /// before making changes.
+    ///
+    /// Examples:
+    ///   athenadef apply
+    ///   athenadef apply --auto-approve
+    ///   athenadef apply --dry-run --target salesdb.*
     Apply {
         /// Skip interactive approval
+        ///
+        /// Automatically approves and applies all changes without prompting for confirmation.
+        /// Use with caution in production environments.
         #[arg(short, long)]
         auto_approve: bool,
 
         /// Show what would be done without executing
+        ///
+        /// Performs all the planning and validation but skips the actual execution.
+        /// Similar to 'plan' but follows the apply workflow.
         #[arg(long)]
         dry_run: bool,
     },
     /// Export existing table definitions to local files
+    ///
+    /// Retrieves table definitions from AWS Athena and saves them as SQL files in your
+    /// local directory structure (database_name/table_name.sql).
+    ///
+    /// Examples:
+    ///   athenadef export
+    ///   athenadef export --overwrite
+    ///   athenadef export --target salesdb.*
     Export {
         /// Overwrite existing files
+        ///
+        /// By default, existing files are skipped to prevent accidental overwrites.
+        /// Use this flag to replace existing files with the remote definitions.
         #[arg(long)]
         overwrite: bool,
 
         /// Output format
+        ///
+        /// Controls the formatting of exported SQL files.
+        /// Options: standard (default), compact
         #[arg(long, default_value = "standard")]
         format: String,
     },

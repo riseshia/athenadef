@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use aws_sdk_athena::Client as AthenaClient;
 use aws_sdk_glue::Client as GlueClient;
+use console::Term;
 use std::env;
 use std::io::{self, Write};
 use std::path::Path;
@@ -9,6 +10,10 @@ use tracing::info;
 use crate::aws::athena::QueryExecutor;
 use crate::aws::glue::GlueCatalogClient;
 use crate::differ::Differ;
+use crate::output::{
+    format_create, format_delete, format_error, format_progress, format_success, format_update,
+    format_warning, OutputStyles,
+};
 use crate::target_filter::parse_target_filter;
 use crate::types::config::Config;
 use crate::types::diff_result::{DiffOperation, DiffResult};
@@ -72,19 +77,24 @@ pub async fn execute(
     let target_filter = parse_target_filter(targets);
 
     // Calculate diff
-    info!("Calculating differences...");
+    println!("{}", format_progress("Calculating differences..."));
     let diff_result = differ
         .calculate_diff(
             Path::new(&base_path),
             Some(|db: &str, table: &str| target_filter(db, table)),
         )
-        .await?;
+        .await
+        .context("Failed to calculate differences. This could be due to:\n  - Network issues connecting to AWS\n  - Invalid AWS credentials or insufficient permissions\n  - Invalid configuration file\n\nRun with --debug flag for more details.")?;
 
     // Display the plan
     display_plan(&diff_result)?;
 
     // If dry run, stop here
     if dry_run {
+        println!(
+            "\n{}",
+            format_warning("Dry run mode - no changes were applied.")
+        );
         return Ok(());
     }
 
@@ -95,49 +105,87 @@ pub async fn execute(
 
     // Prompt for confirmation if not auto-approve
     if !auto_approve && !prompt_for_confirmation()? {
-        println!("\nApply cancelled.");
+        println!("\n{}", format_warning("Apply cancelled."));
         return Ok(());
     }
 
     // Apply the changes
-    apply_changes(&diff_result, &query_executor, &base_path).await?;
+    println!();
+    let result = apply_changes(&diff_result, &query_executor, &base_path).await;
 
-    // Display summary
-    println!(
-        "\nApply complete! Resources: {} added, {} changed, {} destroyed.",
-        diff_result.summary.to_add, diff_result.summary.to_change, diff_result.summary.to_destroy
-    );
-
-    Ok(())
+    match result {
+        Ok(_) => {
+            // Display summary
+            println!(
+                "\n{}",
+                format_success(&format!(
+                    "Apply complete! Resources: {} added, {} changed, {} destroyed.",
+                    diff_result.summary.to_add,
+                    diff_result.summary.to_change,
+                    diff_result.summary.to_destroy
+                ))
+            );
+            Ok(())
+        }
+        Err(e) => {
+            println!("\n{}", format_error(&format!("Apply failed: {}", e)));
+            println!(
+                "\n{}",
+                format_warning("Some changes may have been partially applied.")
+            );
+            println!("Run 'athenadef plan' to see the current state.");
+            Err(e)
+        }
+    }
 }
 
 /// Display the plan summary
 fn display_plan(diff_result: &DiffResult) -> Result<()> {
-    println!(
+    let styles = OutputStyles::new();
+
+    let summary_msg = format!(
         "Plan: {} to add, {} to change, {} to destroy.",
         diff_result.summary.to_add, diff_result.summary.to_change, diff_result.summary.to_destroy
     );
+    println!("{}", styles.bold.apply_to(summary_msg));
 
     if diff_result.no_change {
-        println!("\nNo changes. Your infrastructure matches the configuration.");
+        println!(
+            "\n{}",
+            styles
+                .success
+                .apply_to("No changes. Your infrastructure matches the configuration.")
+        );
         return Ok(());
     }
 
     println!();
 
-    // Display a summary of tables that will be changed
+    // Display a summary of tables that will be changed with color coding
     for table_diff in &diff_result.table_diffs {
         let qualified_name = table_diff.qualified_name();
 
         match table_diff.operation {
             DiffOperation::Create => {
-                println!("+ {}", qualified_name);
+                println!(
+                    "{} {}",
+                    format_create(),
+                    styles.create.apply_to(&qualified_name)
+                );
             }
             DiffOperation::Update => {
-                println!("~ {}", qualified_name);
+                println!(
+                    "{} {}",
+                    format_update(),
+                    styles.update.apply_to(&qualified_name)
+                );
             }
             DiffOperation::Delete => {
-                println!("- {}", qualified_name);
+                println!(
+                    "{} {}",
+                    format_delete(),
+                    styles.delete.apply_to(&qualified_name)
+                );
             }
             DiffOperation::NoChange => {}
         }
@@ -167,29 +215,101 @@ async fn apply_changes(
     query_executor: &QueryExecutor,
     base_path: &Path,
 ) -> Result<()> {
-    println!();
+    let styles = OutputStyles::new();
+    let term = Term::stdout();
+
+    let total =
+        diff_result.summary.to_add + diff_result.summary.to_change + diff_result.summary.to_destroy;
+    let mut current = 0;
 
     for table_diff in &diff_result.table_diffs {
         let qualified_name = table_diff.qualified_name();
 
         match table_diff.operation {
             DiffOperation::Create => {
-                println!("{}: Creating...", qualified_name);
-                create_table(table_diff, query_executor, base_path).await?;
-                println!("{}: Creation complete", qualified_name);
-                println!();
+                current += 1;
+                println!(
+                    "[{}/{}] {}: {}",
+                    current,
+                    total,
+                    styles.create.apply_to(&qualified_name),
+                    format_progress("Creating...")
+                );
+
+                create_table(table_diff, query_executor, base_path).await.map_err(|e| {
+                    anyhow::anyhow!(
+                        "Failed to create table {}. Error: {}\n\nPossible causes:\n  - Invalid SQL syntax in {}/{}.sql\n  - Database does not exist\n  - Insufficient AWS permissions\n  - Network connectivity issues",
+                        qualified_name,
+                        e,
+                        table_diff.database_name,
+                        table_diff.table_name
+                    )
+                })?;
+
+                term.clear_last_lines(1)?;
+                println!(
+                    "[{}/{}] {}: {}",
+                    current,
+                    total,
+                    styles.create.apply_to(&qualified_name),
+                    format_success("Created")
+                );
             }
             DiffOperation::Update => {
-                println!("{}: Modifying...", qualified_name);
-                update_table(table_diff, query_executor, base_path).await?;
-                println!("{}: Modification complete", qualified_name);
-                println!();
+                current += 1;
+                println!(
+                    "[{}/{}] {}: {}",
+                    current,
+                    total,
+                    styles.update.apply_to(&qualified_name),
+                    format_progress("Modifying...")
+                );
+
+                update_table(table_diff, query_executor, base_path).await.map_err(|e| {
+                    anyhow::anyhow!(
+                        "Failed to update table {}. Error: {}\n\nPossible causes:\n  - Invalid SQL syntax in {}/{}.sql\n  - Table is locked or being accessed\n  - Insufficient AWS permissions\n  - Network connectivity issues",
+                        qualified_name,
+                        e,
+                        table_diff.database_name,
+                        table_diff.table_name
+                    )
+                })?;
+
+                term.clear_last_lines(1)?;
+                println!(
+                    "[{}/{}] {}: {}",
+                    current,
+                    total,
+                    styles.update.apply_to(&qualified_name),
+                    format_success("Modified")
+                );
             }
             DiffOperation::Delete => {
-                println!("{}: Destroying...", qualified_name);
-                delete_table(table_diff, query_executor).await?;
-                println!("{}: Destruction complete", qualified_name);
-                println!();
+                current += 1;
+                println!(
+                    "[{}/{}] {}: {}",
+                    current,
+                    total,
+                    styles.delete.apply_to(&qualified_name),
+                    format_progress("Destroying...")
+                );
+
+                delete_table(table_diff, query_executor).await.map_err(|e| {
+                    anyhow::anyhow!(
+                        "Failed to delete table {}. Error: {}\n\nPossible causes:\n  - Table is locked or being accessed\n  - Insufficient AWS permissions\n  - Network connectivity issues",
+                        qualified_name,
+                        e
+                    )
+                })?;
+
+                term.clear_last_lines(1)?;
+                println!(
+                    "[{}/{}] {}: {}",
+                    current,
+                    total,
+                    styles.delete.apply_to(&qualified_name),
+                    format_success("Destroyed")
+                );
             }
             DiffOperation::NoChange => {}
         }

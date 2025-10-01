@@ -7,6 +7,7 @@ use tracing::info;
 use crate::aws::athena::QueryExecutor;
 use crate::aws::glue::GlueCatalogClient;
 use crate::file_utils::FileUtils;
+use crate::output::{format_error, format_progress, format_success, format_warning};
 use crate::target_filter::parse_target_filter;
 use crate::types::config::Config;
 
@@ -65,17 +66,18 @@ pub async fn execute(
     // Parse target filter
     let target_filter = parse_target_filter(targets);
 
-    println!("Exporting table definitions...");
+    println!("{}", format_progress("Exporting table definitions..."));
     println!();
 
     // Get list of databases
     let databases = glue_catalog
         .get_databases()
         .await
-        .context("Failed to get databases from Glue")?;
+        .context("Failed to get databases from Glue. This could be due to:\n  - Network issues connecting to AWS\n  - Invalid AWS credentials or insufficient permissions\n  - Invalid region configuration\n\nRun with --debug flag for more details.")?;
 
     let mut exported_count = 0;
     let mut skipped_count = 0;
+    let mut error_count = 0;
 
     // Process each database
     for database_name in databases {
@@ -99,8 +101,11 @@ pub async fn execute(
             // Check if file already exists and overwrite is false
             if file_path.exists() && !overwrite {
                 println!(
-                    "{}.{}: Skipped (file exists, use --overwrite to replace)",
-                    database_name, table_name
+                    "  {} {}.{}: {}",
+                    format_warning("⊘"),
+                    database_name,
+                    table_name,
+                    format_warning("Skipped (file exists, use --overwrite to replace)")
                 );
                 skipped_count += 1;
                 continue;
@@ -113,42 +118,71 @@ pub async fn execute(
                     // Extract DDL from query result
                     if let Some(ddl) = extract_ddl_from_query_result(&result) {
                         // Write DDL to file
-                        FileUtils::write_sql_file(&file_path, &ddl).with_context(|| {
-                            format!("Failed to write file for {}.{}", database_name, table_name)
-                        })?;
-
-                        println!(
-                            "{}.{}: Exported to {}",
-                            database_name,
-                            table_name,
-                            file_path.display()
-                        );
-                        exported_count += 1;
+                        match FileUtils::write_sql_file(&file_path, &ddl) {
+                            Ok(_) => {
+                                println!(
+                                    "  {} {}.{}: Exported to {}",
+                                    format_success("✓"),
+                                    database_name,
+                                    table_name,
+                                    file_path.display()
+                                );
+                                exported_count += 1;
+                            }
+                            Err(e) => {
+                                println!(
+                                    "  {} {}.{}: {}",
+                                    format_error("✗"),
+                                    database_name,
+                                    table_name,
+                                    format_error(&format!("Failed to write file - {}", e))
+                                );
+                                error_count += 1;
+                            }
+                        }
                     } else {
                         println!(
-                            "{}.{}: Failed to extract DDL from query result",
-                            database_name, table_name
+                            "  {} {}.{}: {}",
+                            format_error("✗"),
+                            database_name,
+                            table_name,
+                            format_error("Failed to extract DDL from query result")
                         );
+                        error_count += 1;
                     }
                 }
                 Err(e) => {
                     println!(
-                        "{}.{}: Failed to get DDL - {}",
-                        database_name, table_name, e
+                        "  {} {}.{}: {}",
+                        format_error("✗"),
+                        database_name,
+                        table_name,
+                        format_error(&format!("Failed to get DDL - {}", e))
                     );
+                    error_count += 1;
                 }
             }
         }
     }
 
     println!();
-    if skipped_count > 0 {
+    let summary = if skipped_count > 0 || error_count > 0 {
+        format!(
+            "Export complete! {} exported, {} skipped, {} errors.",
+            exported_count, skipped_count, error_count
+        )
+    } else {
+        format!("Export complete! {} tables exported.", exported_count)
+    };
+
+    if error_count > 0 {
+        println!("{}", format_warning(&summary));
         println!(
-            "Export complete! {} tables exported, {} skipped.",
-            exported_count, skipped_count
+            "\n{}",
+            format_warning("Some tables failed to export. Check the output above for details.")
         );
     } else {
-        println!("Export complete! {} tables exported.", exported_count);
+        println!("{}", format_success(&summary));
     }
 
     Ok(())
