@@ -68,7 +68,8 @@ pub async fn execute(
     let glue_catalog = GlueCatalogClient::new(glue_client);
 
     // Create differ
-    let differ = Differ::new(glue_catalog, query_executor.clone());
+    let max_concurrent_queries = config.max_concurrent_queries.unwrap_or(5);
+    let differ = Differ::new(glue_catalog, query_executor.clone(), max_concurrent_queries);
 
     // Get current working directory
     let base_path = env::current_dir()?;

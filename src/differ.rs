@@ -16,6 +16,7 @@ use crate::types::diff_result::{
 pub struct Differ {
     glue_client: GlueCatalogClient,
     query_executor: QueryExecutor,
+    max_concurrent_queries: usize,
 }
 
 impl Differ {
@@ -24,10 +25,16 @@ impl Differ {
     /// # Arguments
     /// * `glue_client` - AWS Glue catalog client for fetching table metadata
     /// * `query_executor` - Athena query executor for running SHOW CREATE TABLE queries
-    pub fn new(glue_client: GlueCatalogClient, query_executor: QueryExecutor) -> Self {
+    /// * `max_concurrent_queries` - Maximum number of concurrent queries to execute
+    pub fn new(
+        glue_client: GlueCatalogClient,
+        query_executor: QueryExecutor,
+        max_concurrent_queries: usize,
+    ) -> Self {
         Self {
             glue_client,
             query_executor,
+            max_concurrent_queries,
         }
     }
 
@@ -108,6 +115,8 @@ impl Differ {
     where
         F: Fn(&str, &str) -> bool,
     {
+        use crate::aws::athena::ParallelQueryExecutor;
+
         let mut remote_tables = HashMap::new();
 
         // Get all databases from Glue
@@ -117,44 +126,58 @@ impl Differ {
             .await
             .context("Failed to get databases from Glue")?;
 
-        // For each database, get all tables
-        for database_name in databases {
-            let tables = self
-                .glue_client
-                .get_tables(&database_name)
-                .await
-                .with_context(|| format!("Failed to get tables from database {}", database_name))?;
+        // Get all tables from all databases in parallel
+        let tables_by_db = self
+            .glue_client
+            .get_tables_parallel(databases)
+            .await
+            .context("Failed to get tables from databases")?;
 
-            // For each table, execute SHOW CREATE TABLE to get DDL
+        // Collect all tables that match the filter
+        let mut all_tables = Vec::new();
+        for (database_name, tables) in tables_by_db {
             for table in tables {
-                let table_name = &table.table_name;
-
                 // Apply target filter if specified
                 if let Some(filter) = target_filter {
-                    if !filter(&database_name, table_name) {
+                    if !filter(&database_name, &table.table_name) {
                         continue;
                     }
                 }
+                all_tables.push((database_name.clone(), table.table_name.clone()));
+            }
+        }
 
-                // Execute SHOW CREATE TABLE to get the DDL
-                let query = format!("SHOW CREATE TABLE {}.{}", database_name, table_name);
-                match self.query_executor.execute_query(&query).await {
-                    Ok(result) => {
-                        // Extract DDL from query result
-                        // SHOW CREATE TABLE returns a single row with the DDL in the first column
-                        if let Some(ddl) = extract_ddl_from_query_result(&result) {
-                            let key = format!("{}.{}", database_name, table_name);
-                            remote_tables.insert(key, ddl);
-                        }
-                    }
-                    Err(e) => {
-                        // Log error but continue with other tables
-                        eprintln!(
-                            "Warning: Failed to get DDL for {}.{}: {}",
-                            database_name, table_name, e
-                        );
-                    }
-                }
+        // If no tables to process, return empty
+        if all_tables.is_empty() {
+            return Ok(remote_tables);
+        }
+
+        // Execute SHOW CREATE TABLE queries in parallel with concurrency control
+        let parallel_executor =
+            ParallelQueryExecutor::new(self.query_executor.clone(), self.max_concurrent_queries);
+
+        // Prepare queries and corresponding table keys
+        let queries: Vec<String> = all_tables
+            .iter()
+            .map(|(db, table)| format!("SHOW CREATE TABLE {}.{}", db, table))
+            .collect();
+
+        // Execute all queries in parallel
+        let results = parallel_executor.execute_queries(queries).await?;
+
+        // Process results
+        for (i, result) in results.iter().enumerate() {
+            let (database_name, table_name) = &all_tables[i];
+
+            // Extract DDL from query result
+            if let Some(ddl) = extract_ddl_from_query_result(result) {
+                let key = format!("{}.{}", database_name, table_name);
+                remote_tables.insert(key, ddl);
+            } else {
+                eprintln!(
+                    "Warning: Could not extract DDL for {}.{}",
+                    database_name, table_name
+                );
             }
         }
 

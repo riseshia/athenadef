@@ -285,6 +285,7 @@ impl ParallelQueryExecutor {
     /// # Returns
     /// Vector of QueryResult in the same order as input queries
     pub async fn execute_queries(&self, queries: Vec<String>) -> Result<Vec<QueryResult>> {
+        let num_queries = queries.len();
         let tasks: Vec<_> = queries
             .into_iter()
             .map(|query| {
@@ -298,7 +299,7 @@ impl ParallelQueryExecutor {
             })
             .collect();
 
-        let mut results = Vec::new();
+        let mut results = Vec::with_capacity(num_queries);
         for task in tasks {
             results.push(task.await.context("Task join failed")??);
         }
@@ -315,6 +316,7 @@ impl ParallelQueryExecutor {
     /// # Returns
     /// Vector of execution IDs
     pub async fn start_queries(&self, queries: Vec<String>) -> Result<Vec<String>> {
+        let num_queries = queries.len();
         let tasks: Vec<_> = queries
             .into_iter()
             .map(|query| {
@@ -328,7 +330,7 @@ impl ParallelQueryExecutor {
             })
             .collect();
 
-        let mut execution_ids = Vec::new();
+        let mut execution_ids = Vec::with_capacity(num_queries);
         for task in tasks {
             execution_ids.push(task.await.context("Task join failed")??);
         }
@@ -421,6 +423,24 @@ mod tests {
 
             // Verify semaphore has correct capacity
             assert_eq!(parallel_executor.semaphore.available_permits(), 5);
+        });
+    }
+
+    #[test]
+    fn test_parallel_query_executor_different_concurrency() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let aws_config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
+            let client = AthenaClient::new(&aws_config);
+
+            let executor = QueryExecutor::new(client, "primary".to_string(), None, 300);
+
+            // Test with different concurrency levels
+            let parallel_executor_10 = ParallelQueryExecutor::new(executor.clone(), 10);
+            assert_eq!(parallel_executor_10.semaphore.available_permits(), 10);
+
+            let parallel_executor_1 = ParallelQueryExecutor::new(executor, 1);
+            assert_eq!(parallel_executor_1.semaphore.available_permits(), 1);
         });
     }
 }

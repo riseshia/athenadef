@@ -139,6 +139,53 @@ impl GlueCatalogClient {
         Ok(tables)
     }
 
+    /// Get all tables from multiple databases in parallel
+    ///
+    /// # Arguments
+    /// * `database_names` - List of database names
+    ///
+    /// # Returns
+    /// HashMap mapping database names to vectors of TableDefinition
+    pub async fn get_tables_parallel(
+        &self,
+        database_names: Vec<String>,
+    ) -> Result<std::collections::HashMap<String, Vec<TableDefinition>>> {
+        use std::collections::HashMap;
+
+        let num_dbs = database_names.len();
+        let mut tasks = Vec::with_capacity(num_dbs);
+
+        for database_name in database_names {
+            let client = self.clone();
+            let task = tokio::spawn(async move {
+                let tables = client.get_tables(&database_name).await;
+                (database_name, tables)
+            });
+            tasks.push(task);
+        }
+
+        let mut result = HashMap::with_capacity(num_dbs);
+        for task in tasks {
+            match task.await {
+                Ok((db_name, Ok(tables))) => {
+                    result.insert(db_name, tables);
+                }
+                Ok((db_name, Err(e))) => {
+                    eprintln!(
+                        "Warning: Failed to get tables from database {}: {}",
+                        db_name, e
+                    );
+                    result.insert(db_name, Vec::new());
+                }
+                Err(e) => {
+                    eprintln!("Warning: Task join failed: {}", e);
+                }
+            }
+        }
+
+        Ok(result)
+    }
+
     /// Create a new table
     ///
     /// # Arguments
@@ -460,5 +507,18 @@ mod tests {
 
         let partitions = table_input.partition_keys();
         assert_eq!(partitions.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_get_tables_parallel_empty() {
+        let aws_config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
+        let client = GlueClient::new(&aws_config);
+        let catalog_client = GlueCatalogClient::new(client);
+
+        // Test with empty database list
+        let result = catalog_client.get_tables_parallel(vec![]).await;
+        assert!(result.is_ok());
+        let tables_map = result.unwrap();
+        assert_eq!(tables_map.len(), 0);
     }
 }
