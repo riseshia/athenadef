@@ -4,7 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-athenadef is a Rust CLI tool for AWS Athena schema management. It allows users to manage Athena table schemas through SQL files organized in a directory structure that mirrors database/table relationships.
+athenadef is a Rust CLI tool for AWS Athena schema management.
+It allows users to manage Athena table schemas through SQL files organized in a directory structure that mirrors database/table relationships.
 
 ## Architecture
 
