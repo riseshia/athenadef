@@ -20,6 +20,38 @@ pub struct TableDiff {
     pub table_name: String,
     pub operation: DiffOperation,
     pub text_diff: Option<String>, // Unified diff text for updates
+    pub change_details: Option<ChangeDetails>, // Detailed change information
+}
+
+/// Detailed information about what changed in a table
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ChangeDetails {
+    pub column_changes: Vec<ColumnChange>,
+    pub property_changes: Vec<PropertyChange>,
+}
+
+/// Column-level changes
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ColumnChange {
+    pub change_type: ColumnChangeType,
+    pub column_name: String,
+    pub old_type: Option<String>,
+    pub new_type: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ColumnChangeType {
+    Added,
+    Removed,
+    TypeChanged,
+}
+
+/// Property-level changes (location, format, partitions, etc.)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PropertyChange {
+    pub property_name: String,
+    pub old_value: Option<String>,
+    pub new_value: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -145,24 +177,28 @@ mod tests {
                 table_name: "table1".to_string(),
                 operation: DiffOperation::Create,
                 text_diff: None,
+                change_details: None,
             },
             TableDiff {
                 database_name: "db1".to_string(),
                 table_name: "table2".to_string(),
                 operation: DiffOperation::Update,
                 text_diff: Some("diff".to_string()),
+                change_details: None,
             },
             TableDiff {
                 database_name: "db1".to_string(),
                 table_name: "table3".to_string(),
                 operation: DiffOperation::Delete,
                 text_diff: None,
+                change_details: None,
             },
             TableDiff {
                 database_name: "db1".to_string(),
                 table_name: "table4".to_string(),
                 operation: DiffOperation::Create,
                 text_diff: None,
+                change_details: None,
             },
         ];
 
@@ -179,6 +215,7 @@ mod tests {
             table_name: "customers".to_string(),
             operation: DiffOperation::Create,
             text_diff: None,
+            change_details: None,
         };
         assert_eq!(diff.qualified_name(), "salesdb.customers");
     }
@@ -190,6 +227,7 @@ mod tests {
             table_name: "table".to_string(),
             operation: DiffOperation::Create,
             text_diff: None,
+            change_details: None,
         };
         assert!(diff_create.is_change());
 
@@ -198,6 +236,7 @@ mod tests {
             table_name: "table".to_string(),
             operation: DiffOperation::NoChange,
             text_diff: None,
+            change_details: None,
         };
         assert!(!diff_no_change.is_change());
     }
@@ -208,5 +247,69 @@ mod tests {
         assert_eq!(DiffOperation::Update.to_string(), "update");
         assert_eq!(DiffOperation::Delete.to_string(), "delete");
         assert_eq!(DiffOperation::NoChange.to_string(), "no change");
+    }
+
+    #[test]
+    fn test_change_details_column_changes() {
+        let changes = ChangeDetails {
+            column_changes: vec![
+                ColumnChange {
+                    change_type: ColumnChangeType::Added,
+                    column_name: "new_column".to_string(),
+                    old_type: None,
+                    new_type: Some("string".to_string()),
+                },
+                ColumnChange {
+                    change_type: ColumnChangeType::TypeChanged,
+                    column_name: "id".to_string(),
+                    old_type: Some("int".to_string()),
+                    new_type: Some("bigint".to_string()),
+                },
+                ColumnChange {
+                    change_type: ColumnChangeType::Removed,
+                    column_name: "old_column".to_string(),
+                    old_type: Some("string".to_string()),
+                    new_type: None,
+                },
+            ],
+            property_changes: vec![],
+        };
+
+        assert_eq!(changes.column_changes.len(), 3);
+        assert_eq!(
+            changes.column_changes[0].change_type,
+            ColumnChangeType::Added
+        );
+        assert_eq!(
+            changes.column_changes[1].change_type,
+            ColumnChangeType::TypeChanged
+        );
+        assert_eq!(
+            changes.column_changes[2].change_type,
+            ColumnChangeType::Removed
+        );
+    }
+
+    #[test]
+    fn test_change_details_property_changes() {
+        let changes = ChangeDetails {
+            column_changes: vec![],
+            property_changes: vec![
+                PropertyChange {
+                    property_name: "location".to_string(),
+                    old_value: Some("s3://old/path/".to_string()),
+                    new_value: Some("s3://new/path/".to_string()),
+                },
+                PropertyChange {
+                    property_name: "format".to_string(),
+                    old_value: Some("PARQUET".to_string()),
+                    new_value: Some("ORC".to_string()),
+                },
+            ],
+        };
+
+        assert_eq!(changes.property_changes.len(), 2);
+        assert_eq!(changes.property_changes[0].property_name, "location");
+        assert_eq!(changes.property_changes[1].property_name, "format");
     }
 }
