@@ -102,7 +102,7 @@ jobs:
             3. Make code changes with test (if applicable)
             4. Run tests to verify changes (if applicable)
             5. Refactor code to make it cleaner & keep test green
-            6. Handle code quality (lint, format)
+            6. Handle code quality (format, clippy)
             7. Commit changes with proper commit message
 
             Always summarize at exit what you did into `/tmp/summary`.

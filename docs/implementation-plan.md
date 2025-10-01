@@ -5,8 +5,8 @@
 ### 1.1 Project Setup
 - [x] Cargo.toml configuration
 - [x] Basic directory structure creation
-- [ ] Add dependencies
-- [ ] CI/CD setup (GitHub Actions)
+- [x] Add dependencies
+- [x] CI/CD setup (GitHub Actions)
 
 ### 1.2 Dependencies
 

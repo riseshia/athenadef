@@ -50,7 +50,7 @@ cargo build --release
 cargo fmt --check
 
 # Run clippy for linting
-cargo clippy
+cargo clippy --all-targets --all-features --workspace -- -D warnings
 ```
 
 ## Configuration File
