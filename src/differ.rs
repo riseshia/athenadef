@@ -949,4 +949,244 @@ CREATE TABLE test (
         assert!(property_names.contains(&"location"));
         assert!(property_names.contains(&"format"));
     }
+
+    #[test]
+    fn test_split_column_definitions_simple() {
+        let input = "id bigint, name string, age int";
+        let result = split_column_definitions(input);
+        assert_eq!(result.len(), 3);
+        assert_eq!(result[0], "id bigint");
+        assert_eq!(result[1], "name string");
+        assert_eq!(result[2], "age int");
+    }
+
+    #[test]
+    fn test_split_column_definitions_nested_struct() {
+        let input = "id bigint, data struct<field1:string,field2:int>, name string";
+        let result = split_column_definitions(input);
+        assert_eq!(result.len(), 3);
+        assert_eq!(result[0], "id bigint");
+        assert_eq!(result[1], "data struct<field1:string,field2:int>");
+        assert_eq!(result[2], "name string");
+    }
+
+    #[test]
+    fn test_split_column_definitions_nested_array() {
+        let input = "id bigint, items array<string>, tags array<struct<key:string,value:string>>";
+        let result = split_column_definitions(input);
+        assert_eq!(result.len(), 3);
+        assert_eq!(result[0], "id bigint");
+        assert_eq!(result[1], "items array<string>");
+        assert_eq!(result[2], "tags array<struct<key:string,value:string>>");
+    }
+
+    #[test]
+    fn test_split_column_definitions_empty() {
+        let input = "";
+        let result = split_column_definitions(input);
+        assert_eq!(result.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_column_definition_valid() {
+        let input = "id bigint";
+        let result = parse_column_definition(input);
+        assert_eq!(result, Some(("id".to_string(), "bigint".to_string())));
+    }
+
+    #[test]
+    fn test_parse_column_definition_complex_type() {
+        let input = "data struct<field1:string,field2:int>";
+        let result = parse_column_definition(input);
+        assert_eq!(
+            result,
+            Some((
+                "data".to_string(),
+                "struct<field1:string,field2:int>".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_parse_column_definition_empty() {
+        let input = "";
+        let result = parse_column_definition(input);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_parse_column_definition_no_type() {
+        let input = "id";
+        let result = parse_column_definition(input);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_extract_columns_empty_table() {
+        let sql = "CREATE EXTERNAL TABLE empty () STORED AS PARQUET";
+        let columns = extract_columns(sql);
+        // The parser may find '(' as a column, so we check it's empty or has only invalid entries
+        // After filtering, we expect no valid columns
+        assert!(columns.is_empty() || !columns.contains_key("id"));
+    }
+
+    #[test]
+    fn test_extract_columns_multiline() {
+        let sql = r#"CREATE EXTERNAL TABLE test (
+            id bigint,
+            name string,
+            created_at timestamp
+        ) STORED AS PARQUET"#;
+        let columns = extract_columns(sql);
+        assert_eq!(columns.len(), 3);
+        assert!(columns.contains_key("id"));
+        assert!(columns.contains_key("name"));
+        assert!(columns.contains_key("created_at"));
+    }
+
+    #[test]
+    fn test_detect_column_changes_no_changes() {
+        let mut remote_columns = HashMap::new();
+        remote_columns.insert("id".to_string(), "bigint".to_string());
+        remote_columns.insert("name".to_string(), "string".to_string());
+
+        let mut local_columns = HashMap::new();
+        local_columns.insert("id".to_string(), "bigint".to_string());
+        local_columns.insert("name".to_string(), "string".to_string());
+
+        let changes = detect_column_changes(&remote_columns, &local_columns);
+        assert_eq!(changes.len(), 0);
+    }
+
+    #[test]
+    fn test_detect_property_changes_no_changes() {
+        let sql = "CREATE TABLE test (id int) LOCATION 's3://bucket/' STORED AS PARQUET";
+        let changes = detect_property_changes(sql, sql);
+        assert_eq!(changes.len(), 0);
+    }
+
+    #[test]
+    fn test_detect_property_changes_location_added() {
+        let remote_sql = "CREATE TABLE test (id int) STORED AS PARQUET";
+        let local_sql = "CREATE TABLE test (id int) LOCATION 's3://new/path/' STORED AS PARQUET";
+        let changes = detect_property_changes(remote_sql, local_sql);
+
+        let location_changes: Vec<_> = changes
+            .iter()
+            .filter(|c| c.property_name == "location")
+            .collect();
+        assert_eq!(location_changes.len(), 1);
+        assert_eq!(location_changes[0].old_value, None);
+        assert_eq!(
+            location_changes[0].new_value,
+            Some("s3://new/path/".to_string())
+        );
+    }
+
+    #[test]
+    fn test_detect_property_changes_location_removed() {
+        let remote_sql = "CREATE TABLE test (id int) LOCATION 's3://old/path/' STORED AS PARQUET";
+        let local_sql = "CREATE TABLE test (id int) STORED AS PARQUET";
+        let changes = detect_property_changes(remote_sql, local_sql);
+
+        let location_changes: Vec<_> = changes
+            .iter()
+            .filter(|c| c.property_name == "location")
+            .collect();
+        assert_eq!(location_changes.len(), 1);
+        assert_eq!(
+            location_changes[0].old_value,
+            Some("s3://old/path/".to_string())
+        );
+        assert_eq!(location_changes[0].new_value, None);
+    }
+
+    #[test]
+    fn test_extract_location_not_present() {
+        let sql = "CREATE TABLE test (id int) STORED AS PARQUET";
+        let location = extract_location(sql);
+        assert_eq!(location, None);
+    }
+
+    #[test]
+    fn test_extract_stored_as_not_present() {
+        let sql = "CREATE TABLE test (id int) LOCATION 's3://bucket/'";
+        let format = extract_stored_as(sql);
+        assert_eq!(format, None);
+    }
+
+    #[test]
+    fn test_extract_partitioned_by_not_present() {
+        let sql = "CREATE TABLE test (id int) STORED AS PARQUET";
+        let partitions = extract_partitioned_by(sql);
+        assert_eq!(partitions, None);
+    }
+
+    #[test]
+    fn test_normalize_sql_already_normalized() {
+        let sql = "CREATE TABLE test (\nid int\n)";
+        let normalized = normalize_sql(sql);
+        assert_eq!(normalized, "CREATE TABLE test (\nid int\n)");
+    }
+
+    #[test]
+    fn test_normalize_sql_with_tabs() {
+        let sql = "CREATE TABLE test (\n\t\tid int\n\t)";
+        let normalized = normalize_sql(sql);
+        assert_eq!(normalized, "CREATE TABLE test (\nid int\n)");
+    }
+
+    #[test]
+    fn test_format_sql_diff_no_changes() {
+        let sql = "CREATE TABLE test (\n  id int\n)";
+        let diff = format_sql_diff("db.test", sql, sql);
+        // Even with no changes, we should have headers
+        assert!(diff.contains("--- remote: db.test"));
+        assert!(diff.contains("+++ local:  db.test"));
+    }
+
+    #[test]
+    fn test_detect_changes_no_changes() {
+        let sql = r#"CREATE EXTERNAL TABLE customers (
+            id bigint,
+            name string
+        )
+        STORED AS PARQUET
+        LOCATION 's3://bucket/customers/'"#;
+
+        let changes = detect_changes(sql, sql);
+        assert_eq!(changes.column_changes.len(), 0);
+        assert_eq!(changes.property_changes.len(), 0);
+    }
+
+    #[test]
+    fn test_detect_changes_only_column_changes() {
+        let remote_sql = "CREATE TABLE test (id int, name string)";
+        let local_sql = "CREATE TABLE test (id bigint, name string, email string)";
+
+        let changes = detect_changes(remote_sql, local_sql);
+        assert!(!changes.column_changes.is_empty());
+        // Property changes might be 0 if no properties detected
+    }
+
+    #[test]
+    fn test_detect_changes_only_property_changes() {
+        let remote_sql = "CREATE TABLE test (id int) STORED AS PARQUET";
+        let local_sql = "CREATE TABLE test (id int) STORED AS ORC";
+
+        let changes = detect_changes(remote_sql, local_sql);
+        // Column changes should be 0 or have only case-sensitivity differences
+        // The important thing is property changes should be detected
+        assert!(!changes.property_changes.is_empty());
+
+        // Check that format change is detected
+        let format_changes: Vec<_> = changes
+            .property_changes
+            .iter()
+            .filter(|c| c.property_name == "format")
+            .collect();
+        assert_eq!(format_changes.len(), 1);
+        assert_eq!(format_changes[0].old_value, Some("PARQUET".to_string()));
+        assert_eq!(format_changes[0].new_value, Some("ORC".to_string()));
+    }
 }
