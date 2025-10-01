@@ -1,6 +1,8 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
+use crate::commands::{apply, export, plan};
+
 #[derive(Parser, Debug)]
 #[command(name = "athenadef")]
 #[command(version, about = "AWS Athena schema management tool", long_about = None)]
@@ -55,25 +57,14 @@ impl Cli {
     pub async fn run(&self) -> Result<()> {
         match &self.command {
             Commands::Plan { show_unchanged } => {
-                println!("Plan command (show_unchanged: {})", show_unchanged);
-                Ok(())
+                plan::execute(&self.config, &self.target, *show_unchanged).await
             }
             Commands::Apply {
                 auto_approve,
                 dry_run,
-            } => {
-                println!(
-                    "Apply command (auto_approve: {}, dry_run: {})",
-                    auto_approve, dry_run
-                );
-                Ok(())
-            }
+            } => apply::execute(&self.config, &self.target, *auto_approve, *dry_run).await,
             Commands::Export { overwrite, format } => {
-                println!(
-                    "Export command (overwrite: {}, format: {})",
-                    overwrite, format
-                );
-                Ok(())
+                export::execute(&self.config, &self.target, *overwrite, format).await
             }
         }
     }
