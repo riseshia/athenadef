@@ -63,6 +63,7 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          claude_args: "--allowedTools 'Task Bash Edit Write WebFetch WebSearch'"
           prompt: |
             Update the master issue #${{ env.MASTER_ISSUE }} with newly found untracked issues.
 
