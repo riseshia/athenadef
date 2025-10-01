@@ -78,7 +78,6 @@ jobs:
                - Relationship with existing todo items
             4. Insert the untracked issues into appropriate positions in the todo list
             5. Update master issue with the reorganized todo list
-            6. Add a comment explaining where you added each issue and why
 
             Use these commands:
             ```
