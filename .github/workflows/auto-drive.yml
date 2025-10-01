@@ -1,0 +1,102 @@
+name: Auto drive
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+env:
+  MASTER_ISSUE: 1
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  pick-and-implement:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Pick an issue to work on
+        id: pick_issue
+        run: |
+          master_issue=${{ env.MASTER_ISSUE }}
+          master_body=$(gh issue view $master_issue --json body -q '.body' 2>/dev/null || echo "")
+
+          if [ -n "$master_body" ]; then
+            priority_list=$(echo "$master_body" | grep -oP '#\K\d+' | grep -v "^${master_issue}$")
+
+            for issue_num in $priority_list; do
+              issue_state=$(gh issue view $issue_num --json state,labels -q '.state' 2>/dev/null || echo "")
+              issue_labels=$(gh issue view $issue_num --json labels -q '.labels[].name' 2>/dev/null || echo "")
+
+              if [ "$issue_state" = "OPEN" ] && ! echo "$issue_labels" | grep -q "in-progress"; then
+                issue_number=$issue_num
+                echo "📌 Found priority issue #$issue_number from master issue"
+                break
+              fi
+            done
+          fi
+
+          # 우선순위 목록에 없으면 가장 오래된 open 이슈 선택
+          if [ -z "$issue_number" ]; then
+            issue_number=$(gh issue list \
+              --state open \
+              --json number,labels \
+              --jq ".[] | select(.number != $master_issue) | select(.labels | map(.name) | contains([\"in-progress\"]) | not) | .number" \
+              | head -1)
+
+            if [ -n "$issue_number" ]; then
+              echo "📋 No priority issues, picked oldest issue #$issue_number"
+            fi
+          fi
+
+          if [ -z "$issue_number" ]; then
+            echo "No issues to process"
+            echo "has_issue=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "issue_number=$issue_number" >> $GITHUB_OUTPUT
+          echo "has_issue=true" >> $GITHUB_OUTPUT
+
+          # 이슈 제목 가져오기
+          issue_title=$(gh issue view $issue_number --json title -q '.title')
+          echo "Working on issue #$issue_number: $issue_title"
+
+          # 이슈에 "in-progress" 라벨 추가
+          gh issue edit $issue_number --add-label "in-progress" || true
+
+          # 작업 시작 코멘트
+          gh issue comment $issue_number --body "🤖 Start to work..."
+
+      - name: Implement with Claude Code
+        if: steps.pick_issue.outputs.has_issue == 'true'
+        id: claude_work
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Work on the issue below:
+
+            Issue #${{ steps.pick_issue.outputs.issue_number }}
+
+            Use this command to see the issue details:
+            gh issue view ${{ steps.pick_issue.outputs.issue_number }}
+
+            Workflow:
+            1. Understand the issue and plan the changes
+            2. If issue is is huge, break it down into smaller tasks and create issues for them on GitHub issue and exit.
+            3. Make code changes with test (if applicable)
+            4. Run tests to verify changes (if applicable)
+            5. Refactor code to make it cleaner & keep test green
+            6. Handle code quality (lint, format)
+            7. Commit changes with proper commit message & push
+
+            Notes: Do not create a PR, just commit & push to main branch.
