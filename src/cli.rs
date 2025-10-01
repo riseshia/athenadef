@@ -30,6 +30,10 @@ pub enum Commands {
         /// Show tables with no changes
         #[arg(long)]
         show_unchanged: bool,
+
+        /// Output in JSON format
+        #[arg(long)]
+        json: bool,
     },
     /// Apply configuration changes
     Apply {
@@ -56,9 +60,10 @@ pub enum Commands {
 impl Cli {
     pub async fn run(&self) -> Result<()> {
         match &self.command {
-            Commands::Plan { show_unchanged } => {
-                plan::execute(&self.config, &self.target, *show_unchanged).await
-            }
+            Commands::Plan {
+                show_unchanged,
+                json,
+            } => plan::execute(&self.config, &self.target, *show_unchanged, *json).await,
             Commands::Apply {
                 auto_approve,
                 dry_run,

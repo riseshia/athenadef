@@ -1,10 +1,24 @@
 use anyhow::Result;
+use aws_sdk_athena::Client as AthenaClient;
+use aws_sdk_glue::Client as GlueClient;
+use std::env;
+use std::path::Path;
 use tracing::info;
 
+use crate::aws::athena::QueryExecutor;
+use crate::aws::glue::GlueCatalogClient;
+use crate::differ::Differ;
+use crate::target_filter::parse_target_filter;
 use crate::types::config::Config;
+use crate::types::diff_result::{DiffOperation, DiffResult};
 
 /// Execute the plan command
-pub async fn execute(config_path: &str, targets: &[String], show_unchanged: bool) -> Result<()> {
+pub async fn execute(
+    config_path: &str,
+    targets: &[String],
+    show_unchanged: bool,
+    json: bool,
+) -> Result<()> {
     info!("Starting athenadef plan");
     info!("Loading configuration from {}", config_path);
 
@@ -24,14 +38,110 @@ pub async fn execute(config_path: &str, targets: &[String], show_unchanged: bool
     }
     info!("Show unchanged: {}", show_unchanged);
 
-    // TODO: Implement actual plan logic
-    // 2. Build expected state from local SQL files
-    // 3. Fetch current state from AWS Athena/Glue
-    // 4. Calculate diff between expected and current states
-    // 5. Display the diff results
+    // Initialize AWS clients
+    let aws_config = if let Some(ref region) = config.region {
+        aws_config::from_env()
+            .region(aws_sdk_athena::config::Region::new(region.clone()))
+            .load()
+            .await
+    } else {
+        aws_config::load_from_env().await
+    };
 
-    println!("Plan: 0 to add, 0 to change, 0 to destroy.");
-    println!("\nNo changes. Your infrastructure matches the configuration.");
+    let athena_client = AthenaClient::new(&aws_config);
+    let glue_client = GlueClient::new(&aws_config);
+
+    // Create AWS service clients
+    let query_executor = QueryExecutor::new(
+        athena_client,
+        config.workgroup.clone(),
+        config.output_location.clone(),
+        config.query_timeout_seconds.unwrap_or(300),
+    );
+    let glue_catalog = GlueCatalogClient::new(glue_client);
+
+    // Create differ
+    let differ = Differ::new(glue_catalog, query_executor);
+
+    // Get current working directory
+    let base_path = env::current_dir()?;
+
+    // Parse target filter
+    let target_filter = parse_target_filter(targets);
+
+    // Calculate diff
+    info!("Calculating differences...");
+    let diff_result = differ
+        .calculate_diff(
+            Path::new(&base_path),
+            Some(|db: &str, table: &str| target_filter(db, table)),
+        )
+        .await?;
+
+    // Display results
+    if json {
+        display_json(&diff_result)?;
+    } else {
+        display_human_readable(&diff_result, show_unchanged)?;
+    }
+
+    Ok(())
+}
+
+/// Display diff results in JSON format
+fn display_json(diff_result: &DiffResult) -> Result<()> {
+    let json = serde_json::to_string_pretty(diff_result)?;
+    println!("{}", json);
+    Ok(())
+}
+
+/// Display diff results in human-readable format
+fn display_human_readable(diff_result: &DiffResult, show_unchanged: bool) -> Result<()> {
+    // Print summary
+    println!(
+        "Plan: {} to add, {} to change, {} to destroy.",
+        diff_result.summary.to_add, diff_result.summary.to_change, diff_result.summary.to_destroy
+    );
+
+    if diff_result.no_change {
+        println!("\nNo changes. Your infrastructure matches the configuration.");
+        return Ok(());
+    }
+
+    println!();
+
+    // Display each table diff
+    for table_diff in &diff_result.table_diffs {
+        let qualified_name = table_diff.qualified_name();
+
+        match table_diff.operation {
+            DiffOperation::Create => {
+                println!("+ {}", qualified_name);
+                println!("  Will create table");
+                println!();
+            }
+            DiffOperation::Update => {
+                println!("~ {}", qualified_name);
+                println!("  Will update table");
+                if let Some(ref text_diff) = table_diff.text_diff {
+                    println!("{}", text_diff);
+                }
+                println!();
+            }
+            DiffOperation::Delete => {
+                println!("- {}", qualified_name);
+                println!("  Will destroy table");
+                println!();
+            }
+            DiffOperation::NoChange => {
+                if show_unchanged {
+                    println!("  {}", qualified_name);
+                    println!("  No changes");
+                    println!();
+                }
+            }
+        }
+    }
 
     Ok(())
 }
@@ -39,40 +149,103 @@ pub async fn execute(config_path: &str, targets: &[String], show_unchanged: bool
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
-    use tempfile::NamedTempFile;
+    use crate::types::diff_result::{DiffSummary, TableDiff};
 
-    fn create_test_config() -> NamedTempFile {
-        let mut file = NamedTempFile::new().unwrap();
-        file.write_all(b"workgroup: \"test-workgroup\"\n").unwrap();
-        file
-    }
+    #[test]
+    fn test_display_json() {
+        let diff_result = DiffResult {
+            no_change: false,
+            summary: DiffSummary {
+                to_add: 1,
+                to_change: 0,
+                to_destroy: 0,
+            },
+            table_diffs: vec![TableDiff {
+                database_name: "testdb".to_string(),
+                table_name: "testtable".to_string(),
+                operation: DiffOperation::Create,
+                text_diff: None,
+                change_details: None,
+            }],
+        };
 
-    #[tokio::test]
-    async fn test_plan_command_executes() {
-        let config_file = create_test_config();
-        let result = execute(config_file.path().to_str().unwrap(), &[], false).await;
+        let result = display_json(&diff_result);
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
-    async fn test_plan_command_with_targets() {
-        let config_file = create_test_config();
-        let targets = vec!["db.table".to_string()];
-        let result = execute(config_file.path().to_str().unwrap(), &targets, false).await;
+    #[test]
+    fn test_display_human_readable_no_changes() {
+        let diff_result = DiffResult {
+            no_change: true,
+            summary: DiffSummary {
+                to_add: 0,
+                to_change: 0,
+                to_destroy: 0,
+            },
+            table_diffs: vec![],
+        };
+
+        let result = display_human_readable(&diff_result, false);
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
-    async fn test_plan_command_with_show_unchanged() {
-        let config_file = create_test_config();
-        let result = execute(config_file.path().to_str().unwrap(), &[], true).await;
+    #[test]
+    fn test_display_human_readable_with_changes() {
+        let diff_result = DiffResult {
+            no_change: false,
+            summary: DiffSummary {
+                to_add: 1,
+                to_change: 1,
+                to_destroy: 1,
+            },
+            table_diffs: vec![
+                TableDiff {
+                    database_name: "testdb".to_string(),
+                    table_name: "newtable".to_string(),
+                    operation: DiffOperation::Create,
+                    text_diff: None,
+                    change_details: None,
+                },
+                TableDiff {
+                    database_name: "testdb".to_string(),
+                    table_name: "existingtable".to_string(),
+                    operation: DiffOperation::Update,
+                    text_diff: Some("--- remote\n+++ local\n-old\n+new".to_string()),
+                    change_details: None,
+                },
+                TableDiff {
+                    database_name: "testdb".to_string(),
+                    table_name: "oldtable".to_string(),
+                    operation: DiffOperation::Delete,
+                    text_diff: None,
+                    change_details: None,
+                },
+            ],
+        };
+
+        let result = display_human_readable(&diff_result, false);
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
-    async fn test_plan_command_invalid_config() {
-        let result = execute("nonexistent.yaml", &[], false).await;
-        assert!(result.is_err());
+    #[test]
+    fn test_display_human_readable_show_unchanged() {
+        let diff_result = DiffResult {
+            no_change: false,
+            summary: DiffSummary {
+                to_add: 0,
+                to_change: 0,
+                to_destroy: 0,
+            },
+            table_diffs: vec![TableDiff {
+                database_name: "testdb".to_string(),
+                table_name: "unchangedtable".to_string(),
+                operation: DiffOperation::NoChange,
+                text_diff: None,
+                change_details: None,
+            }],
+        };
+
+        let result = display_human_readable(&diff_result, true);
+        assert!(result.is_ok());
     }
 }

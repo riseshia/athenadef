@@ -4,4 +4,5 @@ pub mod commands;
 pub mod context;
 pub mod differ;
 pub mod file_utils;
+pub mod target_filter;
 pub mod types;
