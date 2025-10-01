@@ -15,7 +15,7 @@ pub struct Cli {
     #[arg(long)]
     pub debug: bool,
 
-    /// Filter target tables in <database>.<table> format
+    /// Filter target tables in `<database>.<table>` format
     #[arg(short, long)]
     pub target: Vec<String>,
 

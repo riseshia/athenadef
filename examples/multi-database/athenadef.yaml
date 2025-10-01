@@ -1,0 +1,9 @@
+# Configuration for multi-database example
+
+workgroup: "primary"
+
+# Enable parallel execution for better performance with multiple tables
+max_concurrent_queries: 10
+
+# Increase timeout for large-scale operations
+query_timeout_seconds: 600

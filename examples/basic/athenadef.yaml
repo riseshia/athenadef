@@ -1,0 +1,4 @@
+# Basic athenadef configuration
+# This uses AWS managed storage by default (no output_location needed)
+
+workgroup: "primary"

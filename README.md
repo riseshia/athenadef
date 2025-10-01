@@ -1,22 +1,52 @@
 # athenadef
 
-Schema management for AWS Athena
+Schema management for AWS Athena - a CLI tool for managing Athena table schemas as code.
+
+## Table of Contents
+
+- [Features](#features)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Commands](#commands)
+- [Configuration](#configuration)
+- [Examples](#examples)
+- [IAM Permissions](#iam-permissions)
+- [License](#license)
+
+## Features
+
+- **Infrastructure as Code**: Manage Athena table definitions using SQL files in a Git-friendly directory structure
+- **Change Preview**: See exactly what will change before applying (similar to Terraform plan)
+- **Safe Deployments**: Interactive approval with detailed diff display
+- **Export Capability**: Export existing tables to local SQL files
+- **Target Filtering**: Apply changes to specific tables or databases using flexible patterns
+- **AWS Managed Storage**: Works without S3 bucket configuration (uses AWS managed storage by default)
+- **Parallel Execution**: Fast operations with concurrent query execution
+- **CI/CD Ready**: GitHub Action available for automated deployments
 
 ## Installation
 
-Custom tap is available for Homebrew:
+### Homebrew
 
-```
+```bash
 brew install rieshia/x/athenadef
 ```
 
-or you can download the code from the [release page](https://github.com/riseshia/athenadef/releases) and compile from it.
+### Binary Download
+
+Download pre-compiled binaries from the [release page](https://github.com/riseshia/athenadef/releases).
+
+### From Source
+
+```bash
+cargo install --git https://github.com/riseshia/athenadef
+```
 
 ### GitHub Action
 
 ```yaml
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -25,66 +55,237 @@ jobs:
           version: v0.1.0 # or latest
 ```
 
-## How to use
+## Quick Start
 
-```
-Usage: athenadef <COMMAND>
+1. **Export existing tables** (optional, to get started with existing infrastructure):
 
-Commands:
-  apply   apply config
-  plan    plan config
-  export  export table def to local
-  help    Print this message or the help of the given subcommand(s)
-
-Options:
-  -h, --help     Print help
-  -V, --version  Print version
+```bash
+athenadef export
 ```
 
-### Directory structure
+This creates SQL files for all your existing tables.
 
-Let's say you have following databases and tables in Athena.
+2. **Review changes**:
 
-- Database: `salesdb`
-  - Table: `customers`
-  - Table: `orders`
-- Database: `marketingdb`
-  - Table: `leads`
-  - Table: `campaigns`
-
-This will be mapped to following directory structure:
-
-```
-- salesdb/
- - customers.sql
- - orders.sql
-- marketingdb/
- - leads.sql
- - campaigns.sql
+```bash
+athenadef plan
 ```
 
-Each `.sql` file should contain DDL for target table.
+3. **Apply changes**:
+
+```bash
+athenadef apply
+```
+
+## Commands
+
+### Global Options
+
+Available for all commands:
+
+```
+-c, --config <FILE>      Config file path [default: athenadef.yaml]
+-t, --target <TABLES>    Filter tables using <database>.<table> format
+    --debug              Enable debug logging
+-h, --help               Print help information
+-V, --version            Print version information
+```
+
+### `plan` - Preview Changes
+
+Show what changes will be made to match your local configuration:
+
+```bash
+athenadef plan [OPTIONS]
+```
+
+**Options:**
+- `--show-unchanged`: Show tables with no changes
+
+**Example output:**
+```
+Plan: 2 to add, 1 to change, 0 to destroy.
+
++ salesdb.new_customers
+  Will create table
+
+~ marketingdb.leads
+  Will update table
+--- remote: marketingdb.leads
++++ local:  marketingdb.leads
+ CREATE EXTERNAL TABLE leads (
+-    score int,
++    score double,
++    created_at timestamp,
+     email string
+ )
+```
+
+### `apply` - Apply Changes
+
+Apply the changes to make your Athena tables match your local configuration:
+
+```bash
+athenadef apply [OPTIONS]
+```
+
+**Options:**
+- `-a, --auto-approve`: Skip interactive approval
+- `--dry-run`: Show what would be done without executing
+
+**Example output:**
+```
+Plan: 2 to add, 1 to change, 0 to destroy.
+
+Do you want to perform these actions? (yes/no): yes
+
+salesdb.new_customers: Creating...
+salesdb.new_customers: Creation complete
+
+marketingdb.leads: Modifying...
+marketingdb.leads: Modification complete
+
+Apply complete! Resources: 1 added, 1 changed, 0 destroyed.
+```
+
+### `export` - Export Table Definitions
+
+Export existing Athena table definitions to local SQL files:
+
+```bash
+athenadef export [OPTIONS]
+```
+
+**Options:**
+- `--overwrite`: Overwrite existing files
+- `--format <FORMAT>`: Output format [standard, partitioned]
+
+**Example output:**
+```
+Exporting table definitions...
+
+salesdb.customers: Exported to salesdb/customers.sql
+salesdb.orders: Exported to salesdb/orders.sql
+
+Export complete! 2 tables exported.
+```
+
+### Target Filtering
+
+Use `--target` to filter operations to specific tables or databases:
+
+```bash
+# Specific table
+athenadef plan --target salesdb.customers
+
+# Multiple tables
+athenadef plan --target salesdb.customers --target marketingdb.leads
+
+# All tables in a database
+athenadef plan --target salesdb.*
+
+# Tables with same name across databases
+athenadef plan --target *.customers
+```
 
 ## Configuration
 
-```yaml
-# athenadef.yaml
-- workgroup: "primary" # Optional
-  output_location: "s3://your-athena-results-bucket/prefix/" # Optional
+### Directory Structure
+
+Organize your SQL files in a directory structure that mirrors your databases and tables:
+
+```
+project-root/
+├── athenadef.yaml        # Configuration file
+├── salesdb/             # Database name
+│   ├── customers.sql    # Table definition
+│   └── orders.sql
+└── marketingdb/
+    ├── leads.sql
+    └── campaigns.sql
 ```
 
-You can specify config file path with `--config` option on each subcommand. Default is `athenadef.yaml`.
+### SQL Files
 
-## Required IAM permissions
+Each `.sql` file should contain a complete `CREATE EXTERNAL TABLE` statement:
 
-If you want to allow athenadef fine-grained permissions, you can start with following policy.
+```sql
+-- customers.sql
+CREATE EXTERNAL TABLE customers (
+    customer_id bigint,
+    name string,
+    email string COMMENT 'Customer email address',
+    registration_date date
+)
+PARTITIONED BY (
+    year string,
+    month string
+)
+STORED AS PARQUET
+LOCATION 's3://your-data-bucket/customers/'
+TBLPROPERTIES (
+    'projection.enabled' = 'true',
+    'projection.year.type' = 'integer',
+    'projection.year.range' = '2020,2030',
+    'projection.month.type' = 'integer',
+    'projection.month.range' = '1,12',
+    'projection.month.digits' = '2'
+);
+```
+
+### Configuration File
+
+Create an `athenadef.yaml` file in your project root:
+
+```yaml
+# athenadef.yaml
+
+# Optional: Athena workgroup (default: "primary")
+workgroup: "primary"
+
+# Optional: S3 location for query results
+# If not specified, uses AWS managed storage (recommended)
+# Managed storage is automatically managed, has 24-hour retention, and is encrypted
+# output_location: "s3://athena-results-bucket/athenadef/"
+
+# Optional: AWS region (uses default from AWS config if not specified)
+# region: "us-west-2"
+
+# Optional: Query timeout in seconds (default: 300)
+# query_timeout_seconds: 600
+
+# Optional: Maximum concurrent queries (default: 5)
+# max_concurrent_queries: 10
+```
+
+You can also use environment variables:
+
+```bash
+export ATHENADEF_WORKGROUP="primary"
+export ATHENADEF_OUTPUT_LOCATION="s3://results/"  # Optional
+export ATHENADEF_REGION="us-west-2"
+export ATHENADEF_DEBUG="true"
+```
+
+## Examples
+
+See the [examples](./examples) directory for complete sample projects:
+
+- [examples/basic](./examples/basic) - Simple setup with a few tables
+- [examples/partitioned](./examples/partitioned) - Tables with partitions and partition projection
+- [examples/multi-database](./examples/multi-database) - Multiple databases with many tables
+
+## IAM Permissions
+
+### Minimum Permissions (with AWS Managed Storage)
+
+When using AWS managed storage (default, no `output_location` specified), you only need these permissions:
 
 ```json
 {
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "AllowAthenaQuery",
       "Effect": "Allow",
       "Action": [
         "athena:StartQueryExecution",
@@ -92,38 +293,110 @@ If you want to allow athenadef fine-grained permissions, you can start with foll
         "athena:GetQueryResults",
         "athena:StopQueryExecution"
       ],
-      "Resource": "arn:aws:athena:*:<your-account>:workgroup/<your-workgroup>"
+      "Resource": "arn:aws:athena:*:*:workgroup/*"
     },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "glue:GetDatabase",
+        "glue:GetDatabases",
+        "glue:GetTable",
+        "glue:GetTables",
+        "glue:CreateTable",
+        "glue:UpdateTable",
+        "glue:DeleteTable"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+### Additional S3 Permissions
+
+Only required when specifying `output_location` in your configuration:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
     {
       "Effect": "Allow",
       "Action": [
         "s3:GetBucketLocation",
         "s3:GetObject",
         "s3:ListBucket",
-        "s3:ListBucketMultipartUploads",
-        "s3:ListMultipartUploadParts",
-        "s3:AbortMultipartUpload",
         "s3:PutObject"
       ],
       "Resource": [
-        "arn:aws:s3:::your-athena-results-bucket",
-        "arn:aws:s3:::your-athena-results-bucket/*"
+        "arn:aws:s3:::your-query-results-bucket",
+        "arn:aws:s3:::your-query-results-bucket/*"
       ]
     }
   ]
 }
 ```
 
-Reference:
+**References:**
+- [Amazon Athena IAM Actions](https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazonathena.html)
+- [AWS Glue IAM Actions](https://docs.aws.amazon.com/service-authorization/latest/reference/list_awsglue.html)
+- [Amazon S3 IAM Actions](https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazons3.html)
 
-- [Actions, resources, and condition keys for Amazon Athena](https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazonathena.html)
-- [Actions, resources, and condition keys for Amazon S3](https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazons3.html)
+## How It Works
+
+athenadef uses a simple but effective approach:
+
+1. **Reads local SQL files** organized in a `database/table.sql` structure
+2. **Fetches current state** from AWS Athena using `SHOW CREATE TABLE`
+3. **Compares definitions** using text-based diff (like git diff)
+4. **Delegates SQL validation** to AWS Athena (no local parsing)
+5. **Applies changes** by executing DDL statements through Athena
+
+This design ensures:
+- **Simplicity**: No complex SQL parsing
+- **Compatibility**: Supports all Athena features automatically
+- **Reliability**: SQL validation by AWS Athena itself
+
+## Troubleshooting
+
+### Common Issues
+
+**Configuration file not found:**
+```bash
+# Specify config file explicitly
+athenadef plan --config path/to/athenadef.yaml
+```
+
+**AWS authentication errors:**
+```bash
+# Check AWS credentials
+aws sts get-caller-identity
+
+# Set AWS profile
+export AWS_PROFILE=your-profile
+```
+
+**SQL syntax errors:**
+SQL errors are reported by Athena and include the file name and query that failed. Check the SQL syntax in your `.sql` files.
+
+### Debug Mode
+
+Enable debug logging to see detailed execution information:
+
+```bash
+athenadef plan --debug
+```
+
+## Contributing
+
+Contributions are welcome! Please see our [contributing guidelines](CONTRIBUTING.md) for details.
 
 ## License
 
-This project is licensed under MIT License.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-And, this project includes software developed by:
-- aws-sdk-config: Licensed under the Apache License, Version 2.0.
-- aws-sdk-athena: Licensed under the Apache License, Version 2.0.
-- aws-sdk-sts: Licensed under the Apache License, Version 2.0.
+This project includes software developed by:
+- aws-sdk-config: Licensed under the Apache License, Version 2.0
+- aws-sdk-athena: Licensed under the Apache License, Version 2.0
+- aws-sdk-glue: Licensed under the Apache License, Version 2.0
+- aws-sdk-s3: Licensed under the Apache License, Version 2.0

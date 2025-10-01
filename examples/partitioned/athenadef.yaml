@@ -1,0 +1,6 @@
+# Configuration for partitioned tables example
+
+workgroup: "primary"
+
+# Optional: Increase timeout for large partitioned tables
+query_timeout_seconds: 600
