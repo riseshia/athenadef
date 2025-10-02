@@ -5,7 +5,6 @@ pub struct Config {
     pub workgroup: String,
     pub output_location: Option<String>, // Optional: None uses AWS managed storage
     pub region: Option<String>,
-    pub database_prefix: Option<String>,
     pub query_timeout_seconds: Option<u64>,
     pub max_concurrent_queries: Option<usize>,
 }
@@ -16,7 +15,6 @@ impl Default for Config {
             workgroup: "primary".to_string(),
             output_location: None, // Default to managed storage
             region: None,
-            database_prefix: None,
             query_timeout_seconds: Some(300),
             max_concurrent_queries: Some(5),
         }
@@ -181,7 +179,6 @@ mod tests {
             workgroup: "custom".to_string(),
             output_location: None,
             region: None,
-            database_prefix: None,
             query_timeout_seconds: None,
             max_concurrent_queries: None,
         };
@@ -198,7 +195,6 @@ mod tests {
             workgroup: "custom".to_string(),
             output_location: Some("s3://bucket/path/".to_string()),
             region: Some("us-east-1".to_string()),
-            database_prefix: Some("prod_".to_string()),
             query_timeout_seconds: Some(600),
             max_concurrent_queries: Some(10),
         };
@@ -210,10 +206,6 @@ mod tests {
             Some("s3://bucket/path/".to_string())
         );
         assert_eq!(config_with_defaults.region, Some("us-east-1".to_string()));
-        assert_eq!(
-            config_with_defaults.database_prefix,
-            Some("prod_".to_string())
-        );
         assert_eq!(config_with_defaults.query_timeout_seconds, Some(600));
         assert_eq!(config_with_defaults.max_concurrent_queries, Some(10));
     }
@@ -240,7 +232,6 @@ workgroup: "test-workgroup"
 workgroup: "my-workgroup"
 output_location: "s3://my-results-bucket/athenadef/"
 region: "us-west-2"
-database_prefix: "prod_"
 query_timeout_seconds: 600
 max_concurrent_queries: 10
 "#;
@@ -255,7 +246,6 @@ max_concurrent_queries: 10
             Some("s3://my-results-bucket/athenadef/".to_string())
         );
         assert_eq!(config.region, Some("us-west-2".to_string()));
-        assert_eq!(config.database_prefix, Some("prod_".to_string()));
         assert_eq!(config.query_timeout_seconds, Some(600));
         assert_eq!(config.max_concurrent_queries, Some(10));
     }

@@ -98,7 +98,6 @@ YAML-based configuration file (`athenadef.yaml`):
 workgroup: "primary"
 output_location: "s3://your-athena-results-bucket/prefix/"  # Optional: omit to use managed storage
 region: "us-west-2"  # Optional
-database_prefix: ""  # Optional
 ```
 
 **Query Result Storage Options:**

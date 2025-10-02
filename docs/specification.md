@@ -217,9 +217,6 @@ output_location: "s3://athena-results-bucket/athenadef/"
 # Optional: AWS region (uses default from AWS config if not specified)
 region: "us-west-2"
 
-# Optional: Prefix for database names
-database_prefix: "prod_"
-
 # Optional: Query timeout in seconds (default: 300)
 query_timeout_seconds: 600
 

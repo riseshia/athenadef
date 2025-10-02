@@ -82,7 +82,6 @@ pub struct Config {
     pub workgroup: String,
     pub output_location: Option<String>,  // Optional: None uses AWS managed storage
     pub region: Option<String>,
-    pub database_prefix: Option<String>,
     pub query_timeout_seconds: Option<u64>,
     pub max_concurrent_queries: Option<usize>,
 }
@@ -93,7 +92,6 @@ impl Default for Config {
             workgroup: "primary".to_string(),
             output_location: None,  // Default to managed storage
             region: None,
-            database_prefix: None,
             query_timeout_seconds: Some(300),
             max_concurrent_queries: Some(5),
         }
