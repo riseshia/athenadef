@@ -11,6 +11,8 @@ Schema management for AWS Athena - a CLI tool for managing Athena table schemas 
 - [Configuration](#configuration)
 - [Examples](#examples)
 - [IAM Permissions](#iam-permissions)
+- [Documentation](#documentation)
+- [Contributing](#contributing)
 - [License](#license)
 
 ## Features
@@ -376,6 +378,31 @@ Enable debug logging to see detailed execution information:
 ```bash
 athenadef plan --debug
 ```
+
+For more detailed troubleshooting help, see the [Troubleshooting Guide](docs/troubleshooting.md).
+
+## Documentation
+
+### Guides
+
+- **[Troubleshooting Guide](docs/troubleshooting.md)** - Detailed solutions for common issues
+- **[AWS Permissions Guide](docs/aws-permissions.md)** - Complete IAM permissions reference and examples
+- **[Migration Guide](docs/migration-guide.md)** - Migrate from Terraform, CDK, CloudFormation, or manual management
+- **[Advanced Usage](docs/advanced-usage.md)** - Advanced patterns, CI/CD integration, multi-environment setup
+- **[FAQ](docs/faq.md)** - Frequently asked questions
+
+### Technical Documentation
+
+- **[Architecture](docs/architecture.md)** - System architecture and design
+- **[Specification](docs/specification.md)** - Complete technical specification
+- **[Technical Design](docs/technical-design.md)** - Core algorithms and implementation details
+- **[JSON Output](docs/json-output.md)** - JSON output format specification
+
+### Examples
+
+- **[Basic Example](examples/basic/)** - Simple setup with a few tables
+- **[Partitioned Tables](examples/partitioned/)** - Partition projection and time-series data
+- **[Multi-Database](examples/multi-database/)** - Managing multiple databases
 
 ## Contributing
 
