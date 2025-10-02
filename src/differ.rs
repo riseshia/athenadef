@@ -546,11 +546,11 @@ fn extract_ddl_from_query_result(
 
 /// Normalize SQL for consistent comparison
 ///
-/// Normalization steps:
-/// - Trim leading/trailing whitespace
-/// - Trim whitespace from each line
-/// - Remove empty lines
-/// - Standardize line endings
+/// Minimal normalization to handle platform differences while preserving
+/// formatting and structure for accurate diffs:
+/// - Trim trailing whitespace from each line
+/// - Standardize line endings to \n
+/// - Trim trailing newlines at the end
 ///
 /// # Arguments
 /// * `sql` - Raw SQL string
@@ -558,12 +558,12 @@ fn extract_ddl_from_query_result(
 /// # Returns
 /// Normalized SQL string
 fn normalize_sql(sql: &str) -> String {
-    sql.trim()
-        .lines()
-        .map(|line| line.trim())
-        .filter(|line| !line.is_empty())
+    sql.lines()
+        .map(|line| line.trim_end())
         .collect::<Vec<_>>()
         .join("\n")
+        .trim_end()
+        .to_string()
 }
 
 /// Format a unified diff between remote and local SQL
@@ -627,11 +627,12 @@ mod tests {
         "#;
 
         let normalized = normalize_sql(sql);
-        assert!(!normalized.starts_with('\n'));
+        // Should preserve leading whitespace on lines but trim trailing
         assert!(!normalized.ends_with('\n'));
-        assert!(!normalized.contains("\n\n"));
+        assert!(!normalized.ends_with(' '));
 
-        let expected = "CREATE EXTERNAL TABLE customers (\nid bigint,\nname string\n)\nSTORED AS PARQUET\nLOCATION 's3://bucket/customers/'";
+        // With minimal normalization, indentation is preserved
+        let expected = "\n            CREATE EXTERNAL TABLE customers (\n                id bigint,\n                name string\n            )\n            STORED AS PARQUET\n            LOCATION 's3://bucket/customers/'";
         assert_eq!(normalized, expected);
     }
 
@@ -645,7 +646,9 @@ CREATE TABLE test (
         "#;
 
         let normalized = normalize_sql(sql);
-        assert!(!normalized.contains("\n\n"));
+        // With minimal normalization, empty lines are preserved
+        assert!(normalized.contains("\n\n"));
+        assert!(!normalized.ends_with('\n'));
     }
 
     #[test]
@@ -1149,6 +1152,7 @@ CREATE TABLE test (
     fn test_normalize_sql_already_normalized() {
         let sql = "CREATE TABLE test (\nid int\n)";
         let normalized = normalize_sql(sql);
+        // With minimal normalization, structure is preserved
         assert_eq!(normalized, "CREATE TABLE test (\nid int\n)");
     }
 
@@ -1156,7 +1160,8 @@ CREATE TABLE test (
     fn test_normalize_sql_with_tabs() {
         let sql = "CREATE TABLE test (\n\t\tid int\n\t)";
         let normalized = normalize_sql(sql);
-        assert_eq!(normalized, "CREATE TABLE test (\nid int\n)");
+        // With minimal normalization, tabs are preserved (only trailing whitespace trimmed)
+        assert_eq!(normalized, "CREATE TABLE test (\n\t\tid int\n\t)");
     }
 
     #[test]
