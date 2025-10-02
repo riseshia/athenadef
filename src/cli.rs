@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
-use crate::commands::{apply, export, plan};
+use crate::commands::{apply, export, init, plan};
 
 #[derive(Parser, Debug)]
 #[command(name = "athenadef")]
@@ -25,6 +25,22 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
+    /// Initialize a new configuration file
+    ///
+    /// Creates a default athenadef.yaml configuration file with helpful comments.
+    /// This is typically the first command you run when setting up athenadef.
+    ///
+    /// Examples:
+    ///   athenadef init
+    ///   athenadef init --force
+    Init {
+        /// Overwrite existing configuration file
+        ///
+        /// By default, init will fail if athenadef.yaml already exists to prevent
+        /// accidental overwrites. Use this flag to replace an existing file.
+        #[arg(long)]
+        force: bool,
+    },
     /// Preview configuration changes
     ///
     /// Calculates the differences between your local schema definitions and the current state
@@ -96,6 +112,7 @@ pub enum Commands {
 impl Cli {
     pub async fn run(&self) -> Result<()> {
         match &self.command {
+            Commands::Init { force } => init::execute(&self.config, *force).await,
             Commands::Plan {
                 show_unchanged,
                 json,
@@ -291,6 +308,30 @@ mod tests {
                 assert!(json);
             }
             _ => panic!("Expected Plan command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_init_command() {
+        let args = vec!["athenadef", "init"];
+        let cli = Cli::try_parse_from(args).unwrap();
+        match cli.command {
+            Commands::Init { force } => {
+                assert!(!force);
+            }
+            _ => panic!("Expected Init command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_init_command_with_force() {
+        let args = vec!["athenadef", "init", "--force"];
+        let cli = Cli::try_parse_from(args).unwrap();
+        match cli.command {
+            Commands::Init { force } => {
+                assert!(force);
+            }
+            _ => panic!("Expected Init command"),
         }
     }
 }
