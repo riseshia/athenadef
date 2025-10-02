@@ -258,15 +258,6 @@ workgroup: "primary"
 # max_concurrent_queries: 10
 ```
 
-You can also use environment variables:
-
-```bash
-export ATHENADEF_WORKGROUP="primary"
-export ATHENADEF_OUTPUT_LOCATION="s3://results/"  # Optional
-export ATHENADEF_REGION="us-west-2"
-export ATHENADEF_DEBUG="true"
-```
-
 ## Examples
 
 See the [examples](./examples) directory for complete sample projects:

@@ -231,20 +231,6 @@ max_concurrent_queries: 10
 enable_caching: true
 ```
 
-### 4.2 Environment Variables
-
-Configuration can also be provided via environment variables:
-
-```bash
-export ATHENADEF_WORKGROUP="primary"
-export ATHENADEF_OUTPUT_LOCATION="s3://results/"  # Optional: omit to use managed storage
-export ATHENADEF_REGION="us-west-2"
-export ATHENADEF_DATABASE_PREFIX="dev_"
-export ATHENADEF_QUERY_TIMEOUT_SECONDS="300"
-export ATHENADEF_MAX_CONCURRENT_QUERIES="5"
-export ATHENADEF_DEBUG="true"
-```
-
 ## 5. Diff Detection
 
 ### 5.1 Detection Strategy
