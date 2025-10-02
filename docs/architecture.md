@@ -119,5 +119,4 @@ region: "us-west-2"  # Optional
 ## Performance Considerations
 
 - Parallel processing for table information retrieval
-- Query result caching
 - Reduction of unnecessary API calls

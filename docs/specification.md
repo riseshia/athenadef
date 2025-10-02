@@ -222,9 +222,6 @@ query_timeout_seconds: 600
 
 # Optional: Maximum concurrent queries (default: 5)
 max_concurrent_queries: 10
-
-# Optional: Enable query result caching (default: true)
-enable_caching: true
 ```
 
 ## 5. Diff Detection
@@ -330,7 +327,6 @@ Error: File not found
 ### 7.2 Optimization Features
 
 - Parallel query execution (max 5 concurrent)
-- Query result caching
 - Minimize unnecessary DESCRIBE TABLE calls
 
 ## 8. Security
