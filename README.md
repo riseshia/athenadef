@@ -158,7 +158,6 @@ athenadef export [OPTIONS]
 
 **Options:**
 - `--overwrite`: Overwrite existing files
-- `--format <FORMAT>`: Output format [standard, partitioned]
 
 **Example output:**
 ```

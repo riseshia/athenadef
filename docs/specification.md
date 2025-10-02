@@ -136,7 +136,6 @@ OPTIONS:
     -c, --config <FILE>          Config file path [default: athenadef.yaml]
     -t, --target <TABLES>        Filter target tables in <database>.<table> format
         --overwrite              Overwrite existing files
-        --format <FORMAT>        Output format [default: standard] [possible values: standard, partitioned]
         --debug                  Enable debug logging
     -h, --help                   Print help information
 ```
