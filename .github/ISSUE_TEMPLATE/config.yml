@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Question or Discussion
+    url: https://github.com/riseshia/athenadef/discussions
+    about: Ask questions or start discussions about athenadef
+  - name: Documentation
+    url: https://github.com/riseshia/athenadef/tree/main/docs
+    about: Read the comprehensive documentation
