@@ -1,8 +1,8 @@
 name: Suggest Missing Issues
 
 on:
-  schedule:
-    - cron: '0 0 * * *'  # Every 0:00 UTC
+  # schedule:
+  #   - cron: '0 0 * * *'  # Every 0:00 UTC
   workflow_dispatch:
 
 env:
