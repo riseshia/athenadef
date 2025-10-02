@@ -425,11 +425,7 @@ Error: File not found
 
 ```
 0  - Success
-1  - General error
-2  - Configuration error
-3  - AWS authentication/permission error
-4  - Query execution error (including SQL syntax errors)
-5  - File system error
+1  - Error
 ```
 
 ## 10. Logging and Debug Output
