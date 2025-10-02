@@ -12,12 +12,7 @@ use crate::target_filter::parse_target_filter;
 use crate::types::config::Config;
 
 /// Execute the export command
-pub async fn execute(
-    config_path: &str,
-    targets: &[String],
-    overwrite: bool,
-    format: &str,
-) -> Result<()> {
+pub async fn execute(config_path: &str, targets: &[String], overwrite: bool) -> Result<()> {
     info!("Starting athenadef export");
     info!("Loading configuration from {}", config_path);
 
@@ -36,7 +31,6 @@ pub async fn execute(
         info!("Targets: {:?}", targets);
     }
     info!("Overwrite: {}", overwrite);
-    info!("Format: {}", format);
 
     // Initialize AWS clients
     let aws_config = if let Some(ref region) = config.region {

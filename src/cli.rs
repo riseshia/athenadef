@@ -90,13 +90,6 @@ pub enum Commands {
         /// Use this flag to replace existing files with the remote definitions.
         #[arg(long)]
         overwrite: bool,
-
-        /// Output format
-        ///
-        /// Controls the formatting of exported SQL files.
-        /// Options: standard (default), compact
-        #[arg(long, default_value = "standard")]
-        format: String,
     },
 }
 
@@ -111,8 +104,8 @@ impl Cli {
                 auto_approve,
                 dry_run,
             } => apply::execute(&self.config, &self.target, *auto_approve, *dry_run).await,
-            Commands::Export { overwrite, format } => {
-                export::execute(&self.config, &self.target, *overwrite, format).await
+            Commands::Export { overwrite } => {
+                export::execute(&self.config, &self.target, *overwrite).await
             }
         }
     }
@@ -254,9 +247,8 @@ mod tests {
         let args = vec!["athenadef", "export"];
         let cli = Cli::try_parse_from(args).unwrap();
         match cli.command {
-            Commands::Export { overwrite, format } => {
+            Commands::Export { overwrite } => {
                 assert!(!overwrite);
-                assert_eq!(format, "standard");
             }
             _ => panic!("Expected Export command"),
         }
@@ -264,12 +256,11 @@ mod tests {
 
     #[test]
     fn test_cli_export_command_with_flags() {
-        let args = vec!["athenadef", "export", "--overwrite", "--format", "compact"];
+        let args = vec!["athenadef", "export", "--overwrite"];
         let cli = Cli::try_parse_from(args).unwrap();
         match cli.command {
-            Commands::Export { overwrite, format } => {
+            Commands::Export { overwrite } => {
                 assert!(overwrite);
-                assert_eq!(format, "compact");
             }
             _ => panic!("Expected Export command"),
         }
