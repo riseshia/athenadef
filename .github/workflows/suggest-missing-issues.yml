@@ -35,7 +35,7 @@ jobs:
             3. Existing open issues
 
             Your task:
-            1. Read all specification documents (docs/architecture.md, docs/specification.md, docs/technical-design.md, docs/implementation-plan.md)
+            1. Read all specification documents (docs/architecture.md, docs/specification.md, docs/technical-design.md)
             2. Review the current source code structure and implementation
             3. List all existing open issues using: `gh issue list --state open --json number,title,labels,body`
             4. Identify gaps between specifications and current implementation/issues:

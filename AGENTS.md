@@ -89,6 +89,5 @@ For comprehensive design and implementation details, refer to the documentation 
 - **`docs/architecture.md`**: システム全体のアーキテクチャ設計、コンポーネント構成、データフロー
 - **`docs/specification.md`**: 完全な仕様書（コマンド、ファイル構造、設定、エラーハンドリング、パフォーマンス、セキュリティ）
 - **`docs/technical-design.md`**: コアデータ構造、差分計算アルゴリズム、AWS統合の技術設計
-- **`docs/implementation-plan.md`**: 12週間の段階的実装計画とマイルストーン
 
 These documents contain essential information for understanding the project structure, making design decisions, and implementing new features.
