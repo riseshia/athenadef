@@ -380,7 +380,6 @@ For more detailed troubleshooting help, see the [Troubleshooting Guide](docs/tro
 
 - **[Troubleshooting Guide](docs/troubleshooting.md)** - Detailed solutions for common issues
 - **[AWS Permissions Guide](docs/aws-permissions.md)** - Complete IAM permissions reference and examples
-- **[Migration Guide](docs/migration-guide.md)** - Migrate from Terraform, CDK, CloudFormation, or manual management
 - **[Advanced Usage](docs/advanced-usage.md)** - Advanced patterns, CI/CD integration, multi-environment setup
 - **[FAQ](docs/faq.md)** - Frequently asked questions
 
