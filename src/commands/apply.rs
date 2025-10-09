@@ -496,10 +496,4 @@ mod tests {
         let result = display_plan(&diff_result);
         assert!(result.is_ok());
     }
-
-    #[test]
-    fn test_prompt_for_confirmation_format() {
-        // This test just verifies the function signature compiles
-        // Actual testing would require mocking stdin/stdout
-    }
 }
