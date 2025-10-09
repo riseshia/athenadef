@@ -11,7 +11,7 @@ workgroup: "primary"
 
 # S3 Output Location (Optional)
 # S3 path where query results will be stored
-# If not specified, AWS managed storage will be used
+# If not specified, the workgroup's default output location will be used
 # Example: "s3://my-bucket/athena-results/"
 # output_location: ""
 

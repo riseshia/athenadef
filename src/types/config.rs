@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub workgroup: String,
-    pub output_location: Option<String>, // Optional: None uses AWS managed storage
+    pub output_location: Option<String>, // Optional: None uses workgroup's default output location
     pub region: Option<String>,
     pub query_timeout_seconds: Option<u64>,
     pub max_concurrent_queries: Option<usize>,
@@ -13,7 +13,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             workgroup: "primary".to_string(),
-            output_location: None, // Default to managed storage
+            output_location: None, // Default to workgroup's output location
             region: None,
             query_timeout_seconds: Some(300),
             max_concurrent_queries: Some(5),
@@ -56,7 +56,7 @@ impl Config {
         if let Some(ref output_location) = self.output_location {
             if !output_location.is_empty() && !output_location.starts_with("s3://") {
                 return Err(anyhow::anyhow!(
-                    "Invalid S3 path: '{}'. S3 paths must start with 's3://' (or omit output_location to use managed storage)",
+                    "Invalid S3 path: '{}'. S3 paths must start with 's3://' (or omit output_location to use workgroup's default)",
                     output_location
                 ));
             }

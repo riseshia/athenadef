@@ -209,9 +209,8 @@ The tool expects an `athenadef.yaml` configuration file:
 workgroup: "primary"
 
 # Optional: S3 location for query results
-# If not specified, uses AWS managed storage (recommended for simplicity)
-# Managed storage: automatically managed, 24-hour retention, encrypted
-# S3 bucket: full control, custom retention, requires S3 permissions
+# If not specified, uses the workgroup's default output location
+# You can configure the workgroup's output location in AWS Console or CLI
 output_location: "s3://athena-results-bucket/athenadef/"
 
 # Optional: AWS region (uses default from AWS config if not specified)
@@ -273,7 +272,7 @@ Error: Configuration error
 
 Error: Configuration error
   ↳ Invalid S3 path: 'invalid-s3-path'
-  ↳ Hint: S3 paths must start with 's3://' (or omit to use managed storage)
+  ↳ Hint: S3 paths must start with 's3://' (or omit to use workgroup's default)
 ```
 
 **SQL Syntax Errors (from Athena):**
@@ -333,7 +332,7 @@ Error: File not found
 
 ### 8.1 Required IAM Permissions
 
-**Minimum permissions (using managed storage):**
+**Minimum permissions (without custom output_location):**
 
 ```json
 {
@@ -368,7 +367,7 @@ Error: File not found
 }
 ```
 
-**Additional permissions (when using S3 bucket for query results):**
+**Additional S3 permissions (when specifying custom output_location):**
 
 ```json
 {
@@ -391,7 +390,9 @@ Error: File not found
 }
 ```
 
-**Note:** S3 permissions are only required when `output_location` is specified in the configuration. When using AWS managed storage (default), S3 permissions for query results are not needed.
+**Note:** S3 permissions depend on your workgroup configuration:
+- If `output_location` is **not specified** in athenadef.yaml: S3 permissions depend on your workgroup's output location setting
+- If `output_location` is **specified** in athenadef.yaml: S3 permissions are required for the specified bucket
 
 ### 8.2 Security Considerations
 

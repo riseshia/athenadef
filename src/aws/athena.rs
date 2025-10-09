@@ -24,7 +24,7 @@ impl QueryExecutor {
     /// # Arguments
     /// * `athena_client` - AWS Athena client
     /// * `workgroup` - Athena workgroup name
-    /// * `output_location` - Optional S3 location for query results (None uses AWS managed storage)
+    /// * `output_location` - Optional S3 location for query results (None uses workgroup's default)
     /// * `timeout_seconds` - Timeout for query execution in seconds
     pub fn new(
         athena_client: AthenaClient,
@@ -68,7 +68,7 @@ impl QueryExecutor {
             .work_group(&self.workgroup);
 
         // Only set result_configuration if output_location is specified
-        // Otherwise, use workgroup's managed storage settings
+        // Otherwise, use workgroup's default output location setting
         if let Some(location) = &self.output_location {
             request = request.result_configuration(
                 ResultConfiguration::builder()

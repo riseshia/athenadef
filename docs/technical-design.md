@@ -80,7 +80,7 @@ pub enum DiffOperation {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub workgroup: String,
-    pub output_location: Option<String>,  // Optional: None uses AWS managed storage
+    pub output_location: Option<String>,  // Optional: None uses workgroup's default
     pub region: Option<String>,
     pub query_timeout_seconds: Option<u64>,
     pub max_concurrent_queries: Option<usize>,
@@ -90,7 +90,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             workgroup: "primary".to_string(),
-            output_location: None,  // Default to managed storage
+            output_location: None,  // Default to workgroup's output location
             region: None,
             query_timeout_seconds: Some(300),
             max_concurrent_queries: Some(5),
@@ -360,7 +360,7 @@ pub struct QueryExecutor {
     athena_client: aws_sdk_athena::Client,
     s3_client: aws_sdk_s3::Client,
     workgroup: String,
-    output_location: Option<String>,  // None uses AWS managed storage
+    output_location: Option<String>,  // None uses workgroup's default
 }
 
 impl QueryExecutor {
@@ -377,7 +377,7 @@ impl QueryExecutor {
             .work_group(&self.workgroup);
 
         // Only set result_configuration if output_location is specified
-        // Otherwise, use workgroup's managed storage settings
+        // Otherwise, use workgroup's default output location setting
         if let Some(location) = &self.output_location {
             request = request.result_configuration(
                 aws_sdk_athena::types::ResultConfiguration::builder()

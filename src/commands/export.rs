@@ -24,7 +24,7 @@ pub async fn execute(config_path: &str, targets: &[String], overwrite: bool) -> 
     if let Some(ref output_location) = config.output_location {
         info!("Output location: {}", output_location);
     } else {
-        info!("Output location: AWS managed storage");
+        info!("Output location: workgroup default");
     }
 
     if !targets.is_empty() {
