@@ -2,18 +2,6 @@
 
 Thank you for your interest in contributing to athenadef! This document provides guidelines and instructions for contributing.
 
-## Table of Contents
-
-- [Code of Conduct](#code-of-conduct)
-- [Getting Started](#getting-started)
-- [Development Setup](#development-setup)
-- [Making Changes](#making-changes)
-- [Testing](#testing)
-- [Submitting Changes](#submitting-changes)
-- [Coding Standards](#coding-standards)
-- [Documentation](#documentation)
-- [Release Process](#release-process)
-
 ## Code of Conduct
 
 This project follows the [Rust Code of Conduct](https://www.rust-lang.org/policies/code-of-conduct). Please be respectful and constructive in all interactions.
