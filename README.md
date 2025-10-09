@@ -120,6 +120,8 @@ athenadef apply [OPTIONS]
 - `-a, --auto-approve`: Skip interactive approval
 - `--dry-run`: Show what would be done without executing
 
+**⚠️ Important:** Table modifications are performed using `DROP TABLE` followed by `CREATE TABLE`. This means tables will be temporarily unavailable during the update process
+
 **Example output:**
 ```
 Plan: 2 to add, 1 to change, 0 to destroy.
