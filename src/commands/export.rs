@@ -1,11 +1,9 @@
 use anyhow::{Context, Result};
 use aws_sdk_athena::Client as AthenaClient;
-use aws_sdk_glue::Client as GlueClient;
 use std::env;
 use tracing::info;
 
 use crate::aws::athena::QueryExecutor;
-use crate::aws::glue::GlueCatalogClient;
 use crate::file_utils::FileUtils;
 use crate::output::{format_error, format_progress, format_success, format_warning};
 use crate::target_filter::parse_target_filter;
@@ -43,16 +41,14 @@ pub async fn execute(config_path: &str, targets: &[String], overwrite: bool) -> 
     };
 
     let athena_client = AthenaClient::new(&aws_config);
-    let glue_client = GlueClient::new(&aws_config);
 
-    // Create AWS service clients
+    // Create query executor
     let query_executor = QueryExecutor::new(
         athena_client,
         config.workgroup.clone(),
         config.output_location.clone(),
         config.query_timeout_seconds.unwrap_or(300),
     );
-    let glue_catalog = GlueCatalogClient::new(glue_client);
 
     // Get current working directory
     let base_path = env::current_dir()?;
@@ -63,11 +59,11 @@ pub async fn execute(config_path: &str, targets: &[String], overwrite: bool) -> 
     println!("{}", format_progress("Exporting table definitions..."));
     println!();
 
-    // Get list of databases
-    let databases = glue_catalog
+    // Get list of databases using SHOW DATABASES
+    let databases = query_executor
         .get_databases()
         .await
-        .context("Failed to get databases from Glue. This could be due to:\n  - Network issues connecting to AWS\n  - Invalid AWS credentials or insufficient permissions\n  - Invalid region configuration\n\nRun with --debug flag for more details.")?;
+        .context("Failed to get databases from Athena. This could be due to:\n  - Network issues connecting to AWS\n  - Invalid AWS credentials or insufficient permissions\n  - Invalid region configuration\n\nRun with --debug flag for more details.")?;
 
     let mut exported_count = 0;
     let mut skipped_count = 0;
@@ -75,22 +71,21 @@ pub async fn execute(config_path: &str, targets: &[String], overwrite: bool) -> 
 
     // Process each database
     for database_name in databases {
-        // Get tables in this database
-        let tables = glue_catalog
+        // Get tables in this database using SHOW TABLES
+        let tables = query_executor
             .get_tables(&database_name)
             .await
             .with_context(|| format!("Failed to get tables from database {}", database_name))?;
 
-        for table in tables {
-            let table_name = &table.table_name;
+        for table_name in tables {
 
             // Apply target filter
-            if !target_filter(&database_name, table_name) {
+            if !target_filter(&database_name, &table_name) {
                 continue;
             }
 
             // Get the file path for this table
-            let file_path = FileUtils::get_table_file_path(&base_path, &database_name, table_name)?;
+            let file_path = FileUtils::get_table_file_path(&base_path, &database_name, &table_name)?;
 
             // Check if file already exists and overwrite is false
             if file_path.exists() && !overwrite {

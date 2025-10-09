@@ -295,8 +295,9 @@ impl Differ {
     }
 
     async fn get_remote_table_list(&self) -> Result<HashMap<String, String>> {
-        // Get all tables using Glue API
-        // For each table, execute "SHOW CREATE TABLE" to get SQL DDL
+        // 1. Execute "SHOW DATABASES" to get all databases
+        // 2. For each database, execute "SHOW TABLES IN <database>" to get table names
+        // 3. For each table, execute "SHOW CREATE TABLE <db>.<table>" to get SQL DDL
         // Return map of "db.table" -> SQL string
         todo!()
     }

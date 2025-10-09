@@ -1,12 +1,10 @@
 use anyhow::Result;
 use aws_sdk_athena::Client as AthenaClient;
-use aws_sdk_glue::Client as GlueClient;
 use std::env;
 use std::path::Path;
 use tracing::info;
 
 use crate::aws::athena::QueryExecutor;
-use crate::aws::glue::GlueCatalogClient;
 use crate::differ::Differ;
 use crate::output::{format_create, format_delete, format_progress, format_update, OutputStyles};
 use crate::target_filter::parse_target_filter;
@@ -50,20 +48,18 @@ pub async fn execute(
     };
 
     let athena_client = AthenaClient::new(&aws_config);
-    let glue_client = GlueClient::new(&aws_config);
 
-    // Create AWS service clients
+    // Create query executor
     let query_executor = QueryExecutor::new(
         athena_client,
         config.workgroup.clone(),
         config.output_location.clone(),
         config.query_timeout_seconds.unwrap_or(300),
     );
-    let glue_catalog = GlueCatalogClient::new(glue_client);
 
     // Create differ
     let max_concurrent_queries = config.max_concurrent_queries.unwrap_or(5);
-    let differ = Differ::new(glue_catalog, query_executor, max_concurrent_queries);
+    let differ = Differ::new(query_executor, max_concurrent_queries);
 
     // Get current working directory
     let base_path = env::current_dir()?;

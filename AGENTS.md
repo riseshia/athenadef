@@ -11,7 +11,7 @@ It allows users to manage Athena table schemas through SQL files organized in a 
 
 - **Language**: Rust
 - **CLI Framework**: Expected to use clap or similar for command parsing
-- **AWS Integration**: Uses AWS SDK for Athena and S3 operations
+- **AWS Integration**: Uses Athena SQL commands (SHOW DATABASES, SHOW TABLES, SHOW CREATE TABLE) for all operations
 - **File Structure**: SQL files organized as `database_name/table_name.sql`
 - **Configuration**: YAML-based configuration (`athenadef.yaml`)
 - **SQL Validation**: Delegates all SQL parsing and validation to AWS Athena (no local SQL parsing)
@@ -73,7 +73,7 @@ Each SQL file contains DDL for the corresponding table.
 
 The tool requires specific IAM permissions for:
 - Athena query operations (StartQueryExecution, GetQueryExecution, etc.)
-- Glue catalog operations (GetDatabase, GetTable, CreateTable, UpdateTable, DeleteTable)
+- Glue Data Catalog operations (accessed via Athena SQL: SHOW DATABASES, SHOW TABLES, SHOW CREATE TABLE, CREATE TABLE, DROP TABLE, etc.)
 - S3 bucket access (depends on workgroup configuration and whether custom `output_location` is specified)
 
 ## Distribution

@@ -4,7 +4,6 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use crate::aws::athena::QueryExecutor;
-use crate::aws::glue::GlueCatalogClient;
 use crate::file_utils::{FileUtils, SqlFile};
 use crate::types::diff_result::{
     ChangeDetails, ColumnChange, ColumnChangeType, DiffOperation, DiffResult, DiffSummary,
@@ -14,7 +13,6 @@ use crate::types::diff_result::{
 /// Differ compares local SQL files with remote AWS Athena tables
 /// to determine what changes need to be applied
 pub struct Differ {
-    glue_client: GlueCatalogClient,
     query_executor: QueryExecutor,
     max_concurrent_queries: usize,
 }
@@ -23,16 +21,10 @@ impl Differ {
     /// Create a new Differ instance
     ///
     /// # Arguments
-    /// * `glue_client` - AWS Glue catalog client for fetching table metadata
-    /// * `query_executor` - Athena query executor for running SHOW CREATE TABLE queries
+    /// * `query_executor` - Athena query executor for running queries
     /// * `max_concurrent_queries` - Maximum number of concurrent queries to execute
-    pub fn new(
-        glue_client: GlueCatalogClient,
-        query_executor: QueryExecutor,
-        max_concurrent_queries: usize,
-    ) -> Self {
+    pub fn new(query_executor: QueryExecutor, max_concurrent_queries: usize) -> Self {
         Self {
-            glue_client,
             query_executor,
             max_concurrent_queries,
         }
@@ -101,7 +93,7 @@ impl Differ {
         Ok(sql_files)
     }
 
-    /// Get remote table definitions from AWS Glue and Athena
+    /// Get remote table definitions from AWS Athena
     ///
     /// # Arguments
     /// * `target_filter` - Optional filter function to include only specific tables
@@ -119,31 +111,30 @@ impl Differ {
 
         let mut remote_tables = HashMap::new();
 
-        // Get all databases from Glue
+        // Get all databases from Athena using SHOW DATABASES
         let databases = self
-            .glue_client
+            .query_executor
             .get_databases()
             .await
-            .context("Failed to get databases from Glue")?;
+            .context("Failed to get databases from Athena")?;
 
-        // Get all tables from all databases in parallel
-        let tables_by_db = self
-            .glue_client
-            .get_tables_parallel(databases)
-            .await
-            .context("Failed to get tables from databases")?;
-
-        // Collect all tables that match the filter
+        // Get all tables from all databases
         let mut all_tables = Vec::new();
-        for (database_name, tables) in tables_by_db {
-            for table in tables {
+        for database_name in databases {
+            let tables = self
+                .query_executor
+                .get_tables(&database_name)
+                .await
+                .with_context(|| format!("Failed to get tables for database '{}'", database_name))?;
+
+            for table_name in tables {
                 // Apply target filter if specified
                 if let Some(filter) = target_filter {
-                    if !filter(&database_name, &table.table_name) {
+                    if !filter(&database_name, &table_name) {
                         continue;
                     }
                 }
-                all_tables.push((database_name.clone(), table.table_name.clone()));
+                all_tables.push((database_name.clone(), table_name));
             }
         }
 

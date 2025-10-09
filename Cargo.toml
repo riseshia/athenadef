@@ -13,7 +13,6 @@ clap = { version = "4", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
 aws-config = { version = "1", features = ["behavior-version-latest"] }
 aws-sdk-athena = { version = "1", features = ["behavior-version-latest"] }
-aws-sdk-glue = { version = "1", features = ["behavior-version-latest"] }
 aws-sdk-s3 = { version = "1", features = ["behavior-version-latest"] }
 aws-sdk-sts = { version = "1", features = ["behavior-version-latest"] }
 serde = { version = "1", features = ["derive"] }

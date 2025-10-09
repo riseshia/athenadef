@@ -184,6 +184,46 @@ impl QueryExecutor {
         })
     }
 
+    /// Get list of all databases using SHOW DATABASES
+    ///
+    /// # Returns
+    /// Vector of database names
+    pub async fn get_databases(&self) -> Result<Vec<String>> {
+        let result = self.execute_query("SHOW DATABASES").await?;
+
+        let databases: Vec<String> = result
+            .rows
+            .iter()
+            .skip(1) // Skip header row
+            .filter_map(|row| row.get_column(0))
+            .map(|s| s.to_string())
+            .collect();
+
+        Ok(databases)
+    }
+
+    /// Get list of tables in a specific database using SHOW TABLES
+    ///
+    /// # Arguments
+    /// * `database` - Database name
+    ///
+    /// # Returns
+    /// Vector of table names
+    pub async fn get_tables(&self, database: &str) -> Result<Vec<String>> {
+        let query = format!("SHOW TABLES IN {}", database);
+        let result = self.execute_query(&query).await?;
+
+        let tables: Vec<String> = result
+            .rows
+            .iter()
+            .skip(1) // Skip header row
+            .filter_map(|row| row.get_column(0))
+            .map(|s| s.to_string())
+            .collect();
+
+        Ok(tables)
+    }
+
     /// Get query results
     ///
     /// # Arguments
