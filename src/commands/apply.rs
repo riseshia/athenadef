@@ -162,7 +162,8 @@ fn display_plan(diff_result: &DiffResult) -> Result<()> {
     println!();
 
     // Collect databases that will be created (databases that only appear in Create operations)
-    let mut databases_to_create: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut databases_to_create: std::collections::HashSet<String> =
+        std::collections::HashSet::new();
     for table_diff in &diff_result.table_diffs {
         if matches!(table_diff.operation, DiffOperation::Create) {
             databases_to_create.insert(table_diff.database_name.clone());
@@ -347,16 +348,14 @@ async fn create_table(
     base_path: &Path,
 ) -> Result<()> {
     // Ensure the database exists first
-    let create_db_query = format!("CREATE DATABASE IF NOT EXISTS `{}`", table_diff.database_name);
+    let create_db_query = format!(
+        "CREATE DATABASE IF NOT EXISTS `{}`",
+        table_diff.database_name
+    );
     query_executor
         .execute_query(&create_db_query)
         .await
-        .with_context(|| {
-            format!(
-                "Failed to create database {}",
-                table_diff.database_name
-            )
-        })?;
+        .with_context(|| format!("Failed to create database {}", table_diff.database_name))?;
 
     // Read the local SQL file to get the CREATE TABLE statement
     use crate::file_utils::FileUtils;
@@ -395,7 +394,7 @@ async fn update_table(
 
     // Drop the existing table
     let drop_query = format!(
-        "DROP TABLE IF EXISTS {}.{}",
+        "DROP TABLE IF EXISTS `{}`.`{}`",
         table_diff.database_name, table_diff.table_name
     );
 
@@ -421,7 +420,7 @@ async fn delete_table(
     query_executor: &QueryExecutor,
 ) -> Result<()> {
     let drop_query = format!(
-        "DROP TABLE IF EXISTS {}.{}",
+        "DROP TABLE IF EXISTS `{}`.`{}`",
         table_diff.database_name, table_diff.table_name
     );
 

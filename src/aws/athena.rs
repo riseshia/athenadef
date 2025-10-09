@@ -6,6 +6,7 @@ use aws_sdk_athena::{
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Semaphore;
+use tracing::error;
 
 use crate::types::query_execution::{QueryExecutionStatus, QueryResult, QueryRow};
 
@@ -49,7 +50,7 @@ impl QueryExecutor {
     /// QueryResult containing execution status and results
     pub async fn execute_query(&self, query: &str) -> Result<QueryResult> {
         let execution_id = self.start_query_execution(query).await?;
-        self.wait_for_completion(&execution_id).await?;
+        self.wait_for_completion(&execution_id, Some(query)).await?;
         self.get_query_results(&execution_id).await
     }
 
@@ -77,10 +78,10 @@ impl QueryExecutor {
             );
         }
 
-        let response = request
-            .send()
-            .await
-            .context("Failed to start query execution")?;
+        let response = request.send().await.map_err(|e| {
+            error!("Failed to start query execution. Query: {}", query);
+            anyhow::anyhow!("Failed to start query execution: {}", e)
+        })?;
 
         response
             .query_execution_id()
@@ -92,16 +93,20 @@ impl QueryExecutor {
     ///
     /// # Arguments
     /// * `execution_id` - Query execution ID
+    /// * `query` - SQL query string (optional, for error logging)
     ///
     /// # Returns
     /// Ok if query succeeded, Err if failed/cancelled/timeout
-    pub async fn wait_for_completion(&self, execution_id: &str) -> Result<()> {
+    pub async fn wait_for_completion(&self, execution_id: &str, query: Option<&str>) -> Result<()> {
         let start_time = std::time::Instant::now();
         let timeout_duration = Duration::from_secs(self.timeout_seconds);
 
         loop {
             // Check timeout
             if start_time.elapsed() > timeout_duration {
+                if let Some(q) = query {
+                    error!("Query execution timed out. Query: {}", q);
+                }
                 return Err(anyhow::anyhow!(
                     "Query execution timed out after {} seconds",
                     self.timeout_seconds
@@ -132,9 +137,16 @@ impl QueryExecutor {
                         .and_then(|s| s.state_change_reason())
                         .unwrap_or("Unknown error");
 
+                    if let Some(q) = query {
+                        error!("Query execution failed. Query: {}", q);
+                    }
+                    error!("Error details: {}", error_message);
                     return Err(anyhow::anyhow!("Query execution failed: {}", error_message));
                 }
                 Some(QueryExecutionState::Cancelled) => {
+                    if let Some(q) = query {
+                        error!("Query execution was cancelled. Query: {}", q);
+                    }
                     return Err(anyhow::anyhow!("Query execution was cancelled"));
                 }
                 Some(QueryExecutionState::Queued) | Some(QueryExecutionState::Running) => {
@@ -209,7 +221,8 @@ impl QueryExecutor {
     /// # Returns
     /// Vector of table names
     pub async fn get_tables(&self, database: &str) -> Result<Vec<String>> {
-        let query = format!("SHOW TABLES IN {}", database);
+        let query = format!("SHOW TABLES IN `{}`", database);
+
         let result = self.execute_query(&query).await?;
 
         let tables: Vec<String> = result
@@ -388,7 +401,7 @@ impl ParallelQueryExecutor {
             .into_iter()
             .map(|execution_id| {
                 let executor = self.executor.clone();
-                tokio::spawn(async move { executor.wait_for_completion(&execution_id).await })
+                tokio::spawn(async move { executor.wait_for_completion(&execution_id, None).await })
             })
             .collect();
 

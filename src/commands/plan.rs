@@ -120,7 +120,8 @@ fn display_human_readable(diff_result: &DiffResult, show_unchanged: bool) -> Res
     println!();
 
     // Collect databases that will be created (databases that only appear in Create operations)
-    let mut databases_to_create: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut databases_to_create: std::collections::HashSet<String> =
+        std::collections::HashSet::new();
     for table_diff in &diff_result.table_diffs {
         if matches!(table_diff.operation, DiffOperation::Create) {
             databases_to_create.insert(table_diff.database_name.clone());

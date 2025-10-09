@@ -125,7 +125,9 @@ impl Differ {
                 .query_executor
                 .get_tables(&database_name)
                 .await
-                .with_context(|| format!("Failed to get tables for database '{}'", database_name))?;
+                .with_context(|| {
+                    format!("Failed to get tables for database '{}'", database_name)
+                })?;
 
             for table_name in tables {
                 // Apply target filter if specified
@@ -150,7 +152,7 @@ impl Differ {
         // Prepare queries and corresponding table keys
         let queries: Vec<String> = all_tables
             .iter()
-            .map(|(db, table)| format!("SHOW CREATE TABLE {}.{}", db, table))
+            .map(|(db, table)| format!("SHOW CREATE TABLE `{}`.`{}`", db, table))
             .collect();
 
         // Execute all queries in parallel
@@ -523,16 +525,29 @@ fn extract_partitioned_by(sql: &str) -> Option<String> {
 fn extract_ddl_from_query_result(
     result: &crate::types::query_execution::QueryResult,
 ) -> Option<String> {
-    // SHOW CREATE TABLE returns rows where the first row is the header
-    // and the second row contains the DDL in the first column
-    if result.rows.len() >= 2 {
-        // Skip the header row (index 0) and get the data row (index 1)
-        let data_row = &result.rows[1];
-        if !data_row.columns.is_empty() {
-            return Some(data_row.columns[0].clone());
-        }
+    // SHOW CREATE TABLE returns multiple rows, each containing a part of the DDL
+    // All rows are data rows (no header), concatenate them with newlines
+    if result.rows.is_empty() {
+        return None;
     }
-    None
+
+    let ddl_lines: Vec<String> = result
+        .rows
+        .iter()
+        .filter_map(|row| {
+            if !row.columns.is_empty() {
+                Some(row.columns[0].clone())
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    if ddl_lines.is_empty() {
+        None
+    } else {
+        Some(ddl_lines.join("\n"))
+    }
 }
 
 /// Normalize SQL for consistent comparison
@@ -678,18 +693,18 @@ CREATE TABLE test (
 
         let mut result = QueryResult::new("test-id".to_string(), QueryExecutionStatus::Succeeded);
 
-        // Add header row
+        // SHOW CREATE TABLE returns each line as a separate row (no header)
         result
             .rows
-            .push(QueryRow::new(vec!["createtab_stmt".to_string()]));
-
-        // Add data row with DDL
-        result.rows.push(QueryRow::new(
-            vec!["CREATE TABLE test (id int)".to_string()],
-        ));
+            .push(QueryRow::new(vec!["CREATE TABLE test (".to_string()]));
+        result.rows.push(QueryRow::new(vec!["  id int".to_string()]));
+        result.rows.push(QueryRow::new(vec![")".to_string()]));
 
         let ddl = extract_ddl_from_query_result(&result);
-        assert_eq!(ddl, Some("CREATE TABLE test (id int)".to_string()));
+        assert_eq!(
+            ddl,
+            Some("CREATE TABLE test (\n  id int\n)".to_string())
+        );
     }
 
     #[test]
@@ -702,16 +717,16 @@ CREATE TABLE test (
     }
 
     #[test]
-    fn test_extract_ddl_from_query_result_only_header() {
+    fn test_extract_ddl_from_query_result_single_row() {
         use crate::types::query_execution::{QueryExecutionStatus, QueryResult, QueryRow};
 
         let mut result = QueryResult::new("test-id".to_string(), QueryExecutionStatus::Succeeded);
         result
             .rows
-            .push(QueryRow::new(vec!["createtab_stmt".to_string()]));
+            .push(QueryRow::new(vec!["CREATE TABLE test (id int)".to_string()]));
 
         let ddl = extract_ddl_from_query_result(&result);
-        assert_eq!(ddl, None);
+        assert_eq!(ddl, Some("CREATE TABLE test (id int)".to_string()));
     }
 
     #[test]
