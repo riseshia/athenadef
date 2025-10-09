@@ -60,10 +60,35 @@ pub async fn execute(config_path: &str, targets: &[String], overwrite: bool) -> 
     println!();
 
     // Get list of databases using SHOW DATABASES
-    let databases = query_executor
+    let all_databases = query_executor
         .get_databases()
         .await
         .context("Failed to get databases from Athena. This could be due to:\n  - Network issues connecting to AWS\n  - Invalid AWS credentials or insufficient permissions\n  - Invalid region configuration\n\nRun with --debug flag for more details.")?;
+
+    // Filter databases based on target filter
+    // Extract unique database names from target patterns
+    let databases: Vec<String> = if targets.is_empty() {
+        // No filter, use all databases
+        all_databases
+    } else {
+        // Get unique database names from targets
+        let target_dbs: std::collections::HashSet<String> = targets
+            .iter()
+            .filter_map(|pattern| {
+                if let Some((db_pattern, _)) = pattern.split_once('.') {
+                    Some(db_pattern.to_string())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // Only include databases that are in the target list
+        all_databases
+            .into_iter()
+            .filter(|db| target_dbs.contains(db))
+            .collect()
+    };
 
     let mut exported_count = 0;
     let mut skipped_count = 0;
@@ -71,6 +96,7 @@ pub async fn execute(config_path: &str, targets: &[String], overwrite: bool) -> 
 
     // Process each database
     for database_name in databases {
+        println!("Database: {}", database_name);
         // Get tables in this database using SHOW TABLES
         let tables = query_executor
             .get_tables(&database_name)
@@ -78,14 +104,14 @@ pub async fn execute(config_path: &str, targets: &[String], overwrite: bool) -> 
             .with_context(|| format!("Failed to get tables from database {}", database_name))?;
 
         for table_name in tables {
-
             // Apply target filter
             if !target_filter(&database_name, &table_name) {
                 continue;
             }
 
             // Get the file path for this table
-            let file_path = FileUtils::get_table_file_path(&base_path, &database_name, &table_name)?;
+            let file_path =
+                FileUtils::get_table_file_path(&base_path, &database_name, &table_name)?;
 
             // Check if file already exists and overwrite is false
             if file_path.exists() && !overwrite {

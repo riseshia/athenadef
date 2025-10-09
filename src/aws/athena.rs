@@ -194,7 +194,6 @@ impl QueryExecutor {
         let databases: Vec<String> = result
             .rows
             .iter()
-            .skip(1) // Skip header row
             .filter_map(|row| row.get_column(0))
             .map(|s| s.to_string())
             .collect();
@@ -216,7 +215,6 @@ impl QueryExecutor {
         let tables: Vec<String> = result
             .rows
             .iter()
-            .skip(1) // Skip header row
             .filter_map(|row| row.get_column(0))
             .map(|s| s.to_string())
             .collect();
