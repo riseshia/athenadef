@@ -1,5 +1,5 @@
 use anyhow::Result;
-use athenadef::cli::Cli;
+use athenadef::cli::{Cli, Commands};
 use clap::Parser;
 use console::Style;
 use std::process;
@@ -8,8 +8,16 @@ use std::process;
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
+    // Extract debug flag from the command
+    let debug = match &cli.command {
+        Commands::Init { debug, .. } => *debug,
+        Commands::Plan { debug, .. } => *debug,
+        Commands::Apply { debug, .. } => *debug,
+        Commands::Export { debug, .. } => *debug,
+    };
+
     // Initialize tracing subscriber with debug level if --debug flag is set
-    let log_level = if cli.debug { "debug" } else { "info" };
+    let log_level = if debug { "debug" } else { "info" };
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()

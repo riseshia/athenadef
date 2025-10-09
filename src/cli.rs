@@ -7,18 +7,6 @@ use crate::commands::{apply, export, init, plan};
 #[command(name = "athenadef")]
 #[command(version, about = "AWS Athena schema management tool", long_about = None)]
 pub struct Cli {
-    /// Config file path
-    #[arg(short, long, default_value = "athenadef.yaml")]
-    pub config: String,
-
-    /// Enable debug logging
-    #[arg(long)]
-    pub debug: bool,
-
-    /// Filter target tables in `<database>.<table>` format
-    #[arg(short, long)]
-    pub target: Vec<String>,
-
     #[command(subcommand)]
     pub command: Commands,
 }
@@ -34,6 +22,14 @@ pub enum Commands {
     ///   athenadef init
     ///   athenadef init --force
     Init {
+        /// Config file path
+        #[arg(short, long, default_value = "athenadef.yaml")]
+        config: String,
+
+        /// Enable debug logging
+        #[arg(long)]
+        debug: bool,
+
         /// Overwrite existing configuration file
         ///
         /// By default, init will fail if athenadef.yaml already exists to prevent
@@ -51,6 +47,21 @@ pub enum Commands {
     ///   athenadef plan --target salesdb.customers
     ///   athenadef plan --json > changes.json
     Plan {
+        /// Config file path
+        #[arg(short, long, default_value = "athenadef.yaml")]
+        config: String,
+
+        /// Enable debug logging
+        #[arg(long)]
+        debug: bool,
+
+        /// Filter target tables in `<database>.<table>` format
+        ///
+        /// Can be used multiple times to specify multiple targets.
+        /// Supports wildcards: `salesdb.*` (all tables in database) or `*.customers` (table across databases).
+        #[arg(short, long)]
+        target: Vec<String>,
+
         /// Show tables with no changes
         ///
         /// By default, only tables with changes are displayed. Use this flag to also show
@@ -76,6 +87,21 @@ pub enum Commands {
     ///   athenadef apply --auto-approve
     ///   athenadef apply --dry-run --target salesdb.*
     Apply {
+        /// Config file path
+        #[arg(short, long, default_value = "athenadef.yaml")]
+        config: String,
+
+        /// Enable debug logging
+        #[arg(long)]
+        debug: bool,
+
+        /// Filter target tables in `<database>.<table>` format
+        ///
+        /// Can be used multiple times to specify multiple targets.
+        /// Supports wildcards: `salesdb.*` (all tables in database) or `*.customers` (table across databases).
+        #[arg(short, long)]
+        target: Vec<String>,
+
         /// Skip interactive approval
         ///
         /// Automatically approves and applies all changes without prompting for confirmation.
@@ -100,6 +126,21 @@ pub enum Commands {
     ///   athenadef export --overwrite
     ///   athenadef export --target salesdb.*
     Export {
+        /// Config file path
+        #[arg(short, long, default_value = "athenadef.yaml")]
+        config: String,
+
+        /// Enable debug logging
+        #[arg(long)]
+        debug: bool,
+
+        /// Filter target tables in `<database>.<table>` format
+        ///
+        /// Can be used multiple times to specify multiple targets.
+        /// Supports wildcards: `salesdb.*` (all tables in database) or `*.customers` (table across databases).
+        #[arg(short, long)]
+        target: Vec<String>,
+
         /// Overwrite existing files
         ///
         /// By default, existing files are skipped to prevent accidental overwrites.
@@ -112,18 +153,31 @@ pub enum Commands {
 impl Cli {
     pub async fn run(&self) -> Result<()> {
         match &self.command {
-            Commands::Init { force } => init::execute(&self.config, *force).await,
+            Commands::Init {
+                config,
+                debug: _,
+                force,
+            } => init::execute(config, *force).await,
             Commands::Plan {
+                config,
+                debug: _,
+                target,
                 show_unchanged,
                 json,
-            } => plan::execute(&self.config, &self.target, *show_unchanged, *json).await,
+            } => plan::execute(config, target, *show_unchanged, *json).await,
             Commands::Apply {
+                config,
+                debug: _,
+                target,
                 auto_approve,
                 dry_run,
-            } => apply::execute(&self.config, &self.target, *auto_approve, *dry_run).await,
-            Commands::Export { overwrite } => {
-                export::execute(&self.config, &self.target, *overwrite).await
-            }
+            } => apply::execute(config, target, *auto_approve, *dry_run).await,
+            Commands::Export {
+                config,
+                debug: _,
+                target,
+                overwrite,
+            } => export::execute(config, target, *overwrite).await,
         }
     }
 }
@@ -136,47 +190,71 @@ mod tests {
     fn test_cli_default_config() {
         let args = vec!["athenadef", "plan"];
         let cli = Cli::try_parse_from(args).unwrap();
-        assert_eq!(cli.config, "athenadef.yaml");
-        assert!(!cli.debug);
-        assert_eq!(cli.target.len(), 0);
+        match cli.command {
+            Commands::Plan { config, debug, .. } => {
+                assert_eq!(config, "athenadef.yaml");
+                assert!(!debug);
+            }
+            _ => panic!("Expected Plan command"),
+        }
     }
 
     #[test]
     fn test_cli_custom_config() {
-        let args = vec!["athenadef", "--config", "custom.yaml", "plan"];
+        let args = vec!["athenadef", "plan", "--config", "custom.yaml"];
         let cli = Cli::try_parse_from(args).unwrap();
-        assert_eq!(cli.config, "custom.yaml");
+        match cli.command {
+            Commands::Plan { config, .. } => {
+                assert_eq!(config, "custom.yaml");
+            }
+            _ => panic!("Expected Plan command"),
+        }
     }
 
     #[test]
     fn test_cli_debug_flag() {
-        let args = vec!["athenadef", "--debug", "plan"];
+        let args = vec!["athenadef", "plan", "--debug"];
         let cli = Cli::try_parse_from(args).unwrap();
-        assert!(cli.debug);
+        match cli.command {
+            Commands::Plan { debug, .. } => {
+                assert!(debug);
+            }
+            _ => panic!("Expected Plan command"),
+        }
     }
 
     #[test]
     fn test_cli_target_single() {
-        let args = vec!["athenadef", "--target", "salesdb.customers", "plan"];
+        let args = vec!["athenadef", "plan", "--target", "salesdb.customers"];
         let cli = Cli::try_parse_from(args).unwrap();
-        assert_eq!(cli.target.len(), 1);
-        assert_eq!(cli.target[0], "salesdb.customers");
+        match cli.command {
+            Commands::Plan { target, .. } => {
+                assert_eq!(target.len(), 1);
+                assert_eq!(target[0], "salesdb.customers");
+            }
+            _ => panic!("Expected Plan command"),
+        }
     }
 
     #[test]
     fn test_cli_target_multiple() {
         let args = vec![
             "athenadef",
+            "plan",
             "--target",
             "salesdb.*",
             "--target",
             "marketingdb.leads",
-            "plan",
         ];
         let cli = Cli::try_parse_from(args).unwrap();
-        assert_eq!(cli.target.len(), 2);
-        assert_eq!(cli.target[0], "salesdb.*");
-        assert_eq!(cli.target[1], "marketingdb.leads");
+        match cli.command {
+            Commands::Plan { target, .. } => {
+                assert_eq!(target.len(), 2);
+                assert_eq!(target[0], "salesdb.*");
+                assert_eq!(target[1], "marketingdb.leads");
+            }
+            _ => panic!("Expected Plan command"),
+        }
     }
 
     #[test]
@@ -185,9 +263,12 @@ mod tests {
         let cli = Cli::try_parse_from(args).unwrap();
         match cli.command {
             Commands::Plan {
+                target,
                 show_unchanged,
                 json,
+                ..
             } => {
+                assert_eq!(target.len(), 0);
                 assert!(!show_unchanged);
                 assert!(!json);
             }
@@ -201,9 +282,12 @@ mod tests {
         let cli = Cli::try_parse_from(args).unwrap();
         match cli.command {
             Commands::Plan {
+                target,
                 show_unchanged,
                 json,
+                ..
             } => {
+                assert_eq!(target.len(), 0);
                 assert!(show_unchanged);
                 assert!(json);
             }
@@ -217,9 +301,12 @@ mod tests {
         let cli = Cli::try_parse_from(args).unwrap();
         match cli.command {
             Commands::Apply {
+                target,
                 auto_approve,
                 dry_run,
+                ..
             } => {
+                assert_eq!(target.len(), 0);
                 assert!(!auto_approve);
                 assert!(!dry_run);
             }
@@ -233,9 +320,12 @@ mod tests {
         let cli = Cli::try_parse_from(args).unwrap();
         match cli.command {
             Commands::Apply {
+                target,
                 auto_approve,
                 dry_run,
+                ..
             } => {
+                assert_eq!(target.len(), 0);
                 assert!(auto_approve);
                 assert!(dry_run);
             }
@@ -249,9 +339,12 @@ mod tests {
         let cli = Cli::try_parse_from(args).unwrap();
         match cli.command {
             Commands::Apply {
+                target,
                 auto_approve,
                 dry_run,
+                ..
             } => {
+                assert_eq!(target.len(), 0);
                 assert!(auto_approve);
                 assert!(!dry_run);
             }
@@ -264,7 +357,10 @@ mod tests {
         let args = vec!["athenadef", "export"];
         let cli = Cli::try_parse_from(args).unwrap();
         match cli.command {
-            Commands::Export { overwrite } => {
+            Commands::Export {
+                target, overwrite, ..
+            } => {
+                assert_eq!(target.len(), 0);
                 assert!(!overwrite);
             }
             _ => panic!("Expected Export command"),
@@ -276,7 +372,10 @@ mod tests {
         let args = vec!["athenadef", "export", "--overwrite"];
         let cli = Cli::try_parse_from(args).unwrap();
         match cli.command {
-            Commands::Export { overwrite } => {
+            Commands::Export {
+                target, overwrite, ..
+            } => {
+                assert_eq!(target.len(), 0);
                 assert!(overwrite);
             }
             _ => panic!("Expected Export command"),
@@ -287,23 +386,27 @@ mod tests {
     fn test_cli_combined_flags() {
         let args = vec![
             "athenadef",
+            "plan",
             "--config",
             "prod.yaml",
             "--debug",
             "--target",
             "db.table",
-            "plan",
             "--json",
         ];
         let cli = Cli::try_parse_from(args).unwrap();
-        assert_eq!(cli.config, "prod.yaml");
-        assert!(cli.debug);
-        assert_eq!(cli.target.len(), 1);
         match cli.command {
             Commands::Plan {
+                config,
+                debug,
+                target,
                 show_unchanged,
                 json,
             } => {
+                assert_eq!(config, "prod.yaml");
+                assert!(debug);
+                assert_eq!(target.len(), 1);
+                assert_eq!(target[0], "db.table");
                 assert!(!show_unchanged);
                 assert!(json);
             }
@@ -316,7 +419,13 @@ mod tests {
         let args = vec!["athenadef", "init"];
         let cli = Cli::try_parse_from(args).unwrap();
         match cli.command {
-            Commands::Init { force } => {
+            Commands::Init {
+                config,
+                debug,
+                force,
+            } => {
+                assert_eq!(config, "athenadef.yaml");
+                assert!(!debug);
                 assert!(!force);
             }
             _ => panic!("Expected Init command"),
@@ -328,7 +437,13 @@ mod tests {
         let args = vec!["athenadef", "init", "--force"];
         let cli = Cli::try_parse_from(args).unwrap();
         match cli.command {
-            Commands::Init { force } => {
+            Commands::Init {
+                config,
+                debug,
+                force,
+            } => {
+                assert_eq!(config, "athenadef.yaml");
+                assert!(!debug);
                 assert!(force);
             }
             _ => panic!("Expected Init command"),
