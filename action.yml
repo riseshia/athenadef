@@ -1,0 +1,57 @@
+inputs:
+  version:
+    description: "A version to install athenadef"
+    default: latest
+    required: false
+  github-token:
+    description: "The token used when calling GitHub API"
+    required: false
+    default: ${{ github.token }}
+
+runs:
+  using: "composite"
+  steps:
+    - shell: bash
+      env:
+        github_token: ${{ inputs.github-token }}
+      run: |
+        set -e
+        ARCH=$(uname -m)
+        if [ "${ARCH}" = "x86_64" ]; then
+          echo "Detected architecture: ${ARCH}"
+        else
+          echo "Unsupported architecture: ${ARCH}"
+          exit 1
+        fi
+
+        VERSION="${{ inputs.version }}"
+
+        echo "VERSION=${VERSION}"
+
+        api_request_args=("-sS")
+        if [[ -n "$github_token" ]]; then
+          api_request_args=("${api_request_args[@]}" -H "authorization: token $github_token")
+        fi
+        if [ "${VERSION}" = "latest" ]; then
+          DOWNLOAD_URL=$(curl "${api_request_args[@]}" https://api.github.com/repos/riseshia/athenadef/releases \
+            | jq --arg matcher "linux.musl." -r '[.[] | select(.prerelease==false)][0].assets[].browser_download_url | select(match($matcher) and (endswith("sha256sum") | not))')
+        else
+          DOWNLOAD_URL=https://github.com/riseshia/athenadef/releases/download/${VERSION}/fubura_${VERSION}_${ARCH}-unknown-linux-musl.zip
+        fi
+
+        echo "DOWNLOAD_URL=${DOWNLOAD_URL}"
+        mkdir -p ${RUNNER_TOOL_CACHE}/athenadef
+        cd /tmp
+        curl -sfLO ${DOWNLOAD_URL}
+        if [[ "${DOWNLOAD_URL}" =~ \.zip$ ]]; then
+          FILENAME=$(basename $DOWNLOAD_URL .zip)
+          unzip ${FILENAME}.zip
+          sudo install athenadef ${RUNNER_TOOL_CACHE}/athenadef/athenadef
+        else
+          echo "Not supported file format from ${DOWNLOAD_URL}"
+          exit 1
+        fi
+
+        echo "Adding ${RUNNER_TOOL_CACHE}/athenadef to path..."
+        echo "${RUNNER_TOOL_CACHE}/athenadef" >> $GITHUB_PATH
+        "${RUNNER_TOOL_CACHE}/athenadef/athenadef" --version
