@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use aws_sdk_athena::Client as AthenaClient;
-use std::env;
+use std::path::Path;
 use tracing::info;
 
 use crate::aws::athena::QueryExecutor;
@@ -53,8 +53,12 @@ pub async fn execute(config_path: &str, targets: &[String], overwrite: bool) -> 
         config.query_timeout_seconds.unwrap_or(300),
     );
 
-    // Get current working directory
-    let base_path = env::current_dir()?;
+    // Get base path from config file directory
+    let config_path = Path::new(config_path);
+    let base_path = config_path
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .to_path_buf();
 
     // Parse target filter
     let target_filter = parse_target_filter(&effective_targets);

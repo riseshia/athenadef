@@ -1,6 +1,5 @@
 use anyhow::Result;
 use aws_sdk_athena::Client as AthenaClient;
-use std::env;
 use std::path::Path;
 use tracing::info;
 
@@ -64,8 +63,12 @@ pub async fn execute(
     let max_concurrent_queries = config.max_concurrent_queries.unwrap_or(5);
     let differ = Differ::new(query_executor, max_concurrent_queries);
 
-    // Get current working directory
-    let base_path = env::current_dir()?;
+    // Get base path from config file directory
+    let config_path_buf = Path::new(config_path);
+    let base_path = config_path_buf
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .to_path_buf();
 
     // Parse target filter
     let target_filter = parse_target_filter(&effective_targets);
