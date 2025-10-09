@@ -30,6 +30,15 @@ workgroup: "primary"
 # Maximum number of queries to run concurrently
 # Default: 5
 # max_concurrent_queries: 5
+
+# Databases (Optional)
+# List of databases to manage
+# If specified and --target is not provided, only these databases will be processed
+# This is useful to avoid scanning all databases in your account
+# Example:
+# databases:
+#   - salesdb
+#   - marketingdb
 "#;
 
 /// Execute the init command
@@ -168,10 +177,12 @@ mod tests {
         assert!(content.contains("region"));
         assert!(content.contains("query_timeout_seconds"));
         assert!(content.contains("max_concurrent_queries"));
+        assert!(content.contains("databases"));
 
         // Verify helpful comments exist
         assert!(content.contains("AWS Athena Workgroup"));
         assert!(content.contains("S3 Output Location"));
         assert!(content.contains("Query Timeout"));
+        assert!(content.contains("List of databases"));
     }
 }

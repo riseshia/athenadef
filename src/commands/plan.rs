@@ -32,8 +32,18 @@ pub async fn execute(
         info!("Output location: workgroup default");
     }
 
-    if !targets.is_empty() {
-        info!("Targets: {:?}", targets);
+    // Determine effective targets: use --target if provided, otherwise use config.databases
+    let effective_targets = if !targets.is_empty() {
+        targets.to_vec()
+    } else if let Some(ref databases) = config.databases {
+        // Convert database names to target patterns (database.*)
+        databases.iter().map(|db| format!("{}.*", db)).collect()
+    } else {
+        vec![]
+    };
+
+    if !effective_targets.is_empty() {
+        info!("Targets: {:?}", effective_targets);
     }
     info!("Show unchanged: {}", show_unchanged);
 
@@ -65,7 +75,7 @@ pub async fn execute(
     let base_path = env::current_dir()?;
 
     // Parse target filter
-    let target_filter = parse_target_filter(targets);
+    let target_filter = parse_target_filter(&effective_targets);
 
     // Calculate diff
     println!("{}", format_progress("Calculating differences..."));

@@ -25,8 +25,18 @@ pub async fn execute(config_path: &str, targets: &[String], overwrite: bool) -> 
         info!("Output location: workgroup default");
     }
 
-    if !targets.is_empty() {
-        info!("Targets: {:?}", targets);
+    // Determine effective targets: use --target if provided, otherwise use config.databases
+    let effective_targets = if !targets.is_empty() {
+        targets.to_vec()
+    } else if let Some(ref databases) = config.databases {
+        // Convert database names to target patterns (database.*)
+        databases.iter().map(|db| format!("{}.*", db)).collect()
+    } else {
+        vec![]
+    };
+
+    if !effective_targets.is_empty() {
+        info!("Targets: {:?}", effective_targets);
     }
     info!("Overwrite: {}", overwrite);
 
@@ -54,13 +64,13 @@ pub async fn execute(config_path: &str, targets: &[String], overwrite: bool) -> 
     let base_path = env::current_dir()?;
 
     // Parse target filter
-    let target_filter = parse_target_filter(targets);
+    let target_filter = parse_target_filter(&effective_targets);
 
     println!("{}", format_progress("Exporting table definitions..."));
     println!();
 
     // Get list of databases
-    let databases: Vec<String> = if targets.is_empty() {
+    let databases: Vec<String> = if effective_targets.is_empty() {
         // No filter, get all databases using SHOW DATABASES
         query_executor
             .get_databases()
@@ -68,7 +78,7 @@ pub async fn execute(config_path: &str, targets: &[String], overwrite: bool) -> 
             .context("Failed to get databases from Athena. This could be due to:\n  - Network issues connecting to AWS\n  - Invalid AWS credentials or insufficient permissions\n  - Invalid region configuration\n\nRun with --debug flag for more details.")?
     } else {
         // Extract unique database names from target patterns (no need to query SHOW DATABASES)
-        let target_dbs: std::collections::HashSet<String> = targets
+        let target_dbs: std::collections::HashSet<String> = effective_targets
             .iter()
             .filter_map(|pattern| {
                 if let Some((db_pattern, _)) = pattern.split_once('.') {

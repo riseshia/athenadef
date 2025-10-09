@@ -232,9 +232,15 @@ Create an `athenadef.yaml` file in your project root:
 workgroup: "primary"
 
 # Optional: S3 location for query results
-# If not specified, uses AWS managed storage (recommended)
-# Managed storage is automatically managed, has 24-hour retention, and is encrypted
+# If not specified, uses workgroup's default output location (recommended)
 # output_location: "s3://athena-results-bucket/athenadef/"
+
+# Optional: List of databases to manage
+# If specified and --target is not provided, only these databases will be processed
+# This is useful to avoid scanning all databases in your account
+# databases:
+#   - salesdb
+#   - marketingdb
 
 # Optional: AWS region (uses default from AWS config if not specified)
 # region: "us-west-2"

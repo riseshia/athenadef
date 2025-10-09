@@ -7,6 +7,7 @@ pub struct Config {
     pub region: Option<String>,
     pub query_timeout_seconds: Option<u64>,
     pub max_concurrent_queries: Option<usize>,
+    pub databases: Option<Vec<String>>, // Optional: databases to manage (used when --target is not specified)
 }
 
 impl Default for Config {
@@ -17,6 +18,7 @@ impl Default for Config {
             region: None,
             query_timeout_seconds: Some(300),
             max_concurrent_queries: Some(5),
+            databases: None,
         }
     }
 }
@@ -181,6 +183,7 @@ mod tests {
             region: None,
             query_timeout_seconds: None,
             max_concurrent_queries: None,
+            databases: None,
         };
 
         let config_with_defaults = config.with_defaults();
@@ -197,6 +200,7 @@ mod tests {
             region: Some("us-east-1".to_string()),
             query_timeout_seconds: Some(600),
             max_concurrent_queries: Some(10),
+            databases: Some(vec!["db1".to_string(), "db2".to_string()]),
         };
 
         let config_with_defaults = config.with_defaults();
@@ -208,6 +212,10 @@ mod tests {
         assert_eq!(config_with_defaults.region, Some("us-east-1".to_string()));
         assert_eq!(config_with_defaults.query_timeout_seconds, Some(600));
         assert_eq!(config_with_defaults.max_concurrent_queries, Some(10));
+        assert_eq!(
+            config_with_defaults.databases,
+            Some(vec!["db1".to_string(), "db2".to_string()])
+        );
     }
 
     #[test]
