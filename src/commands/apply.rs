@@ -358,13 +358,3 @@ async fn delete_table(
 
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_prompt_for_confirmation_format() {
-        // Just verify the function exists and can be called
-        // We can't test actual I/O interaction in unit tests
-        assert!(true);
-    }
-}
