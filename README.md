@@ -4,12 +4,10 @@ Schema management for AWS Athena - a CLI tool for managing Athena table schemas 
 
 ## Features
 
-- **Infrastructure as Code**: Manage Athena table definitions using SQL files in a Git-friendly directory structure
+- **DDL as Code**: Manage Athena table definitions using SQL files in a Git-friendly directory structure
 - **Change Preview**: See exactly what will change before applying (similar to Terraform plan)
-- **Safe Deployments**: Interactive approval with detailed diff display
 - **Export Capability**: Export existing tables to local SQL files
 - **Target Filtering**: Apply changes to specific tables or databases using flexible patterns
-- **AWS Managed Storage**: Works without S3 bucket configuration (uses AWS managed storage by default)
 - **Parallel Execution**: Fast operations with concurrent query execution
 - **CI/CD Ready**: GitHub Action available for automated deployments
 
