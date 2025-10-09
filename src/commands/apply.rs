@@ -12,7 +12,7 @@ use crate::output::{
     format_create, format_delete, format_error, format_progress, format_success, format_update,
     format_warning, OutputStyles,
 };
-use crate::target_filter::parse_target_filter;
+use crate::target_filter::{parse_target_filter, resolve_targets};
 use crate::types::config::Config;
 use crate::types::diff_result::{DiffOperation, DiffResult};
 
@@ -38,14 +38,7 @@ pub async fn execute(
     }
 
     // Determine effective targets: use --target if provided, otherwise use config.databases
-    let effective_targets = if !targets.is_empty() {
-        targets.to_vec()
-    } else if let Some(ref databases) = config.databases {
-        // Convert database names to target patterns (database.*)
-        databases.iter().map(|db| format!("{}.*", db)).collect()
-    } else {
-        vec![]
-    };
+    let effective_targets = resolve_targets(targets, config.databases.as_ref());
 
     if !effective_targets.is_empty() {
         info!("Targets: {:?}", effective_targets);

@@ -9,6 +9,30 @@ use regex::Regex;
 /// Type alias for a target filter function
 pub type TargetFilter = Box<dyn Fn(&str, &str) -> bool>;
 
+/// Resolve effective targets from command line arguments and config
+///
+/// Priority:
+/// 1. If `cli_targets` is not empty, use it
+/// 2. If `config_databases` is provided, convert to `{database}.*` patterns
+/// 3. Otherwise, return empty vector (no filtering)
+///
+/// # Arguments
+/// * `cli_targets` - Target patterns from command line (--target option)
+/// * `config_databases` - Database names from config file
+///
+/// # Returns
+/// Vector of target patterns to use
+pub fn resolve_targets(cli_targets: &[String], config_databases: Option<&Vec<String>>) -> Vec<String> {
+    if !cli_targets.is_empty() {
+        cli_targets.to_vec()
+    } else if let Some(databases) = config_databases {
+        // Convert database names to target patterns (database.*)
+        databases.iter().map(|db| format!("{}.*", db)).collect()
+    } else {
+        vec![]
+    }
+}
+
 /// Parse target filters from command line arguments
 ///
 /// # Arguments
@@ -141,5 +165,41 @@ mod tests {
         let filter = parse_target_filter(&["invalid".to_string()]);
         // Since no valid patterns, it should reject all
         assert!(!filter("salesdb", "customers"));
+    }
+
+    #[test]
+    fn test_resolve_targets_cli_takes_priority() {
+        let cli_targets = vec!["salesdb.customers".to_string()];
+        let config_databases = Some(vec!["marketingdb".to_string()]);
+
+        let result = resolve_targets(&cli_targets, config_databases.as_ref());
+        assert_eq!(result, vec!["salesdb.customers"]);
+    }
+
+    #[test]
+    fn test_resolve_targets_uses_config_when_no_cli() {
+        let cli_targets = vec![];
+        let config_databases = Some(vec!["salesdb".to_string(), "marketingdb".to_string()]);
+
+        let result = resolve_targets(&cli_targets, config_databases.as_ref());
+        assert_eq!(result, vec!["salesdb.*", "marketingdb.*"]);
+    }
+
+    #[test]
+    fn test_resolve_targets_empty_when_no_config() {
+        let cli_targets = vec![];
+        let config_databases: Option<Vec<String>> = None;
+
+        let result = resolve_targets(&cli_targets, config_databases.as_ref());
+        assert_eq!(result, Vec::<String>::new());
+    }
+
+    #[test]
+    fn test_resolve_targets_empty_cli_and_empty_config() {
+        let cli_targets = vec![];
+        let config_databases = Some(vec![]);
+
+        let result = resolve_targets(&cli_targets, config_databases.as_ref());
+        assert_eq!(result, Vec::<String>::new());
     }
 }
