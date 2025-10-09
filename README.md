@@ -2,19 +2,6 @@
 
 Schema management for AWS Athena - a CLI tool for managing Athena table schemas as code.
 
-## Table of Contents
-
-- [Features](#features)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Commands](#commands)
-- [Configuration](#configuration)
-- [Examples](#examples)
-- [IAM Permissions](#iam-permissions)
-- [Documentation](#documentation)
-- [Contributing](#contributing)
-- [License](#license)
-
 ## Features
 
 - **Infrastructure as Code**: Manage Athena table definitions using SQL files in a Git-friendly directory structure
