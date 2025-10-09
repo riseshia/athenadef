@@ -59,19 +59,15 @@ pub async fn execute(config_path: &str, targets: &[String], overwrite: bool) -> 
     println!("{}", format_progress("Exporting table definitions..."));
     println!();
 
-    // Get list of databases using SHOW DATABASES
-    let all_databases = query_executor
-        .get_databases()
-        .await
-        .context("Failed to get databases from Athena. This could be due to:\n  - Network issues connecting to AWS\n  - Invalid AWS credentials or insufficient permissions\n  - Invalid region configuration\n\nRun with --debug flag for more details.")?;
-
-    // Filter databases based on target filter
-    // Extract unique database names from target patterns
+    // Get list of databases
     let databases: Vec<String> = if targets.is_empty() {
-        // No filter, use all databases
-        all_databases
+        // No filter, get all databases using SHOW DATABASES
+        query_executor
+            .get_databases()
+            .await
+            .context("Failed to get databases from Athena. This could be due to:\n  - Network issues connecting to AWS\n  - Invalid AWS credentials or insufficient permissions\n  - Invalid region configuration\n\nRun with --debug flag for more details.")?
     } else {
-        // Get unique database names from targets
+        // Extract unique database names from target patterns (no need to query SHOW DATABASES)
         let target_dbs: std::collections::HashSet<String> = targets
             .iter()
             .filter_map(|pattern| {
@@ -83,11 +79,7 @@ pub async fn execute(config_path: &str, targets: &[String], overwrite: bool) -> 
             })
             .collect();
 
-        // Only include databases that are in the target list
-        all_databases
-            .into_iter()
-            .filter(|db| target_dbs.contains(db))
-            .collect()
+        target_dbs.into_iter().collect()
     };
 
     let mut exported_count = 0;
@@ -213,16 +205,29 @@ pub async fn execute(config_path: &str, targets: &[String], overwrite: bool) -> 
 fn extract_ddl_from_query_result(
     result: &crate::types::query_execution::QueryResult,
 ) -> Option<String> {
-    // SHOW CREATE TABLE returns rows where the first row is the header
-    // and the second row contains the DDL in the first column
-    if result.rows.len() >= 2 {
-        // Skip the header row (index 0) and get the data row (index 1)
-        let data_row = &result.rows[1];
-        if !data_row.columns.is_empty() {
-            return Some(data_row.columns[0].clone());
-        }
+    // SHOW CREATE TABLE returns multiple rows, each containing a part of the DDL
+    // All rows are data rows (no header), concatenate them with newlines
+    if result.rows.is_empty() {
+        return None;
     }
-    None
+
+    let ddl_lines: Vec<String> = result
+        .rows
+        .iter()
+        .filter_map(|row| {
+            if !row.columns.is_empty() {
+                Some(row.columns[0].clone())
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    if ddl_lines.is_empty() {
+        None
+    } else {
+        Some(ddl_lines.join("\n"))
+    }
 }
 
 #[cfg(test)]
@@ -234,18 +239,19 @@ mod tests {
     fn test_extract_ddl_from_query_result_success() {
         let mut result = QueryResult::new("exec-123".to_string(), QueryExecutionStatus::Succeeded);
 
-        // Add header row
+        // Add data rows with DDL (SHOW CREATE TABLE returns multiple rows, no header)
+        result.rows.push(QueryRow::new(vec![
+            "CREATE EXTERNAL TABLE `default.test`(".to_string()
+        ]));
         result
             .rows
-            .push(QueryRow::new(vec!["createtab_stmt".to_string()]));
-
-        // Add data row with DDL
-        result.rows.push(QueryRow::new(vec![
-            "CREATE EXTERNAL TABLE test (id int)".to_string()
-        ]));
+            .push(QueryRow::new(vec!["  `id` int COMMENT '')".to_string()]));
 
         let ddl = extract_ddl_from_query_result(&result);
-        assert_eq!(ddl, Some("CREATE EXTERNAL TABLE test (id int)".to_string()));
+        assert_eq!(
+            ddl,
+            Some("CREATE EXTERNAL TABLE `default.test`(\n  `id` int COMMENT '')".to_string())
+        );
     }
 
     #[test]
@@ -260,18 +266,15 @@ mod tests {
         let mut result = QueryResult::new("exec-123".to_string(), QueryExecutionStatus::Succeeded);
         result
             .rows
-            .push(QueryRow::new(vec!["createtab_stmt".to_string()]));
+            .push(QueryRow::new(vec!["CREATE EXTERNAL TABLE test".to_string()]));
 
         let ddl = extract_ddl_from_query_result(&result);
-        assert_eq!(ddl, None);
+        assert_eq!(ddl, Some("CREATE EXTERNAL TABLE test".to_string()));
     }
 
     #[test]
     fn test_extract_ddl_from_query_result_no_columns() {
         let mut result = QueryResult::new("exec-123".to_string(), QueryExecutionStatus::Succeeded);
-        result
-            .rows
-            .push(QueryRow::new(vec!["createtab_stmt".to_string()]));
         result.rows.push(QueryRow::new(vec![]));
 
         let ddl = extract_ddl_from_query_result(&result);
@@ -281,23 +284,35 @@ mod tests {
     #[test]
     fn test_extract_ddl_from_query_result_complex_ddl() {
         let mut result = QueryResult::new("exec-123".to_string(), QueryExecutionStatus::Succeeded);
+
+        // SHOW CREATE TABLE returns each line as a separate row (no header)
+        result.rows.push(QueryRow::new(vec![
+            "CREATE EXTERNAL TABLE `default.test`(".to_string()
+        ]));
+        result.rows.push(QueryRow::new(
+            vec!["  `id` bigint COMMENT '', ".to_string()],
+        ));
+        result.rows.push(QueryRow::new(vec![
+            "  `name` string COMMENT '')".to_string()
+        ]));
         result
             .rows
-            .push(QueryRow::new(vec!["createtab_stmt".to_string()]));
-
-        let complex_ddl = r#"CREATE EXTERNAL TABLE test (
-  id bigint,
-  name string
-)
-PARTITIONED BY (year int)
-STORED AS PARQUET
-LOCATION 's3://bucket/path/'"#;
-
+            .push(QueryRow::new(vec!["PARTITIONED BY ( ".to_string()]));
         result
             .rows
-            .push(QueryRow::new(vec![complex_ddl.to_string()]));
+            .push(QueryRow::new(vec!["  `year` int)".to_string()]));
+        result
+            .rows
+            .push(QueryRow::new(vec!["STORED AS PARQUET".to_string()]));
+        result
+            .rows
+            .push(QueryRow::new(vec!["LOCATION".to_string()]));
+        result
+            .rows
+            .push(QueryRow::new(vec!["  's3://bucket/path/'".to_string()]));
 
         let ddl = extract_ddl_from_query_result(&result);
-        assert_eq!(ddl, Some(complex_ddl.to_string()));
+        let expected = "CREATE EXTERNAL TABLE `default.test`(\n  `id` bigint COMMENT '', \n  `name` string COMMENT '')\nPARTITIONED BY ( \n  `year` int)\nSTORED AS PARQUET\nLOCATION\n  's3://bucket/path/'";
+        assert_eq!(ddl, Some(expected.to_string()));
     }
 }
