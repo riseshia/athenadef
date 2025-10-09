@@ -108,7 +108,6 @@ pub struct AthendefContext {
     pub config: Config,
     pub aws_config: aws_config::SdkConfig,
     pub athena_client: aws_sdk_athena::Client,
-    pub glue_client: aws_sdk_glue::Client,
     pub s3_client: aws_sdk_s3::Client,
     pub debug_mode: bool,
     pub targets: Option<Vec<String>>,
@@ -124,10 +123,9 @@ impl AthendefContext {
     ) -> Result<Self> {
         let config = Config::load_from_path(config_path)?;
         let aws_config = aws_config::load_from_env().await;
-        
+
         Ok(Self {
             athena_client: aws_sdk_athena::Client::new(&aws_config),
-            glue_client: aws_sdk_glue::Client::new(&aws_config),
             s3_client: aws_sdk_s3::Client::new(&aws_config),
             config,
             aws_config,

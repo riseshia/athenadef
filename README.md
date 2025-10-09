@@ -402,5 +402,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 This project includes software developed by:
 - aws-sdk-config: Licensed under the Apache License, Version 2.0
 - aws-sdk-athena: Licensed under the Apache License, Version 2.0
-- aws-sdk-glue: Licensed under the Apache License, Version 2.0
 - aws-sdk-s3: Licensed under the Apache License, Version 2.0

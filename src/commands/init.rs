@@ -16,7 +16,7 @@ workgroup: "primary"
 # output_location: ""
 
 # AWS Region (Optional)
-# AWS region for Athena and Glue operations
+# AWS region for Athena operations
 # If not specified, uses the default AWS region from your environment
 # Example: "us-east-1"
 # region: ""

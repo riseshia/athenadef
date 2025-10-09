@@ -73,7 +73,7 @@ Each SQL file contains DDL for the corresponding table.
 
 The tool requires specific IAM permissions for:
 - Athena query operations (StartQueryExecution, GetQueryExecution, etc.)
-- Glue Data Catalog operations (accessed via Athena SQL: SHOW DATABASES, SHOW TABLES, SHOW CREATE TABLE, CREATE TABLE, DROP TABLE, etc.)
+- Data Catalog operations (accessed via Athena SQL: SHOW DATABASES, SHOW TABLES, SHOW CREATE TABLE, CREATE TABLE, DROP TABLE, etc.)
 - S3 bucket access (depends on workgroup configuration and whether custom `output_location` is specified)
 
 ## Distribution

@@ -4,7 +4,7 @@ use athenadef::types::table_definition::{ColumnDefinition, StorageDescriptor, Ta
 use std::collections::HashMap;
 
 // Note: These are integration tests that test table definition logic
-// The differ module uses the Glue client to compare remote and local tables,
+// The differ module uses Athena SQL queries to compare remote and local tables,
 // but here we test the table definition structure itself
 
 #[test]
