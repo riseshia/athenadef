@@ -122,7 +122,7 @@ pub async fn execute(config_path: &str, targets: &[String], overwrite: bool) -> 
             }
 
             // Execute SHOW CREATE TABLE to get DDL
-            let query = format!("SHOW CREATE TABLE {}.{}", database_name, table_name);
+            let query = format!("SHOW CREATE TABLE `{}`.`{}`", database_name, table_name);
             match query_executor.execute_query(&query).await {
                 Ok(result) => {
                     // Extract DDL from query result
