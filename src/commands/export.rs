@@ -267,9 +267,9 @@ mod tests {
     #[test]
     fn test_extract_ddl_from_query_result_header_only() {
         let mut result = QueryResult::new("exec-123".to_string(), QueryExecutionStatus::Succeeded);
-        result
-            .rows
-            .push(QueryRow::new(vec!["CREATE EXTERNAL TABLE test".to_string()]));
+        result.rows.push(QueryRow::new(
+            vec!["CREATE EXTERNAL TABLE test".to_string()],
+        ));
 
         let ddl = extract_ddl_from_query_result(&result);
         assert_eq!(ddl, Some("CREATE EXTERNAL TABLE test".to_string()));

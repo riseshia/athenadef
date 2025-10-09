@@ -22,7 +22,10 @@ pub type TargetFilter = Box<dyn Fn(&str, &str) -> bool>;
 ///
 /// # Returns
 /// Vector of target patterns to use
-pub fn resolve_targets(cli_targets: &[String], config_databases: Option<&Vec<String>>) -> Vec<String> {
+pub fn resolve_targets(
+    cli_targets: &[String],
+    config_databases: Option<&Vec<String>>,
+) -> Vec<String> {
     if !cli_targets.is_empty() {
         cli_targets.to_vec()
     } else if let Some(databases) = config_databases {
