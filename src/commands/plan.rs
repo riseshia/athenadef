@@ -116,6 +116,29 @@ fn display_human_readable(diff_result: &DiffResult, show_unchanged: bool) -> Res
 
     println!();
 
+    // Collect databases that will be created (databases that only appear in Create operations)
+    let mut databases_to_create: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for table_diff in &diff_result.table_diffs {
+        if matches!(table_diff.operation, DiffOperation::Create) {
+            databases_to_create.insert(table_diff.database_name.clone());
+        }
+    }
+
+    // Display database creation notices first
+    if !databases_to_create.is_empty() {
+        let mut db_list: Vec<_> = databases_to_create.iter().collect();
+        db_list.sort();
+        for db in db_list {
+            println!(
+                "{} database: {}",
+                format_create(),
+                styles.create.apply_to(db)
+            );
+            println!("  Will create database if it does not exist");
+            println!();
+        }
+    }
+
     // Display each table diff with color coding
     for table_diff in &diff_result.table_diffs {
         let qualified_name = table_diff.qualified_name();

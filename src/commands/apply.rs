@@ -158,6 +158,28 @@ fn display_plan(diff_result: &DiffResult) -> Result<()> {
 
     println!();
 
+    // Collect databases that will be created (databases that only appear in Create operations)
+    let mut databases_to_create: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for table_diff in &diff_result.table_diffs {
+        if matches!(table_diff.operation, DiffOperation::Create) {
+            databases_to_create.insert(table_diff.database_name.clone());
+        }
+    }
+
+    // Display database creation notices first
+    if !databases_to_create.is_empty() {
+        let mut db_list: Vec<_> = databases_to_create.iter().collect();
+        db_list.sort();
+        for db in db_list {
+            println!(
+                "{} database: {}",
+                format_create(),
+                styles.create.apply_to(db)
+            );
+        }
+        println!();
+    }
+
     // Display a summary of tables that will be changed with color coding
     for table_diff in &diff_result.table_diffs {
         let qualified_name = table_diff.qualified_name();
@@ -235,7 +257,7 @@ async fn apply_changes(
 
                 create_table(table_diff, query_executor, base_path).await.map_err(|e| {
                     anyhow::anyhow!(
-                        "Failed to create table {}. Error: {}\n\nPossible causes:\n  - Invalid SQL syntax in {}/{}.sql\n  - Database does not exist\n  - Insufficient AWS permissions\n  - Network connectivity issues",
+                        "Failed to create table {}. Error: {}\n\nPossible causes:\n  - Invalid SQL syntax in {}/{}.sql\n  - Insufficient AWS permissions\n  - Network connectivity issues",
                         qualified_name,
                         e,
                         table_diff.database_name,
@@ -321,6 +343,18 @@ async fn create_table(
     query_executor: &QueryExecutor,
     base_path: &Path,
 ) -> Result<()> {
+    // Ensure the database exists first
+    let create_db_query = format!("CREATE DATABASE IF NOT EXISTS `{}`", table_diff.database_name);
+    query_executor
+        .execute_query(&create_db_query)
+        .await
+        .with_context(|| {
+            format!(
+                "Failed to create database {}",
+                table_diff.database_name
+            )
+        })?;
+
     // Read the local SQL file to get the CREATE TABLE statement
     use crate::file_utils::FileUtils;
 
