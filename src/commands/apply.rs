@@ -8,8 +8,8 @@ use tracing::info;
 use crate::aws::athena::QueryExecutor;
 use crate::differ::Differ;
 use crate::output::{
-    display_diff_result, format_error, format_progress, format_success, format_warning,
-    OutputStyles,
+    OutputStyles, display_diff_result, format_error, format_progress, format_success,
+    format_warning,
 };
 use crate::target_filter::{parse_target_filter, resolve_targets};
 use crate::types::config::Config;

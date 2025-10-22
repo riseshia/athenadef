@@ -151,10 +151,12 @@ mod tests {
         };
         let result = config.validate();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("must start with 's3://'"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("must start with 's3://'")
+        );
     }
 
     #[test]
@@ -262,10 +264,12 @@ max_concurrent_queries: 10
     fn test_load_from_path_missing_file() {
         let result = Config::load_from_path("nonexistent.yaml");
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Failed to read config file"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Failed to read config file")
+        );
     }
 
     #[test]
@@ -280,10 +284,12 @@ invalid yaml here: [
 
         let result = Config::load_from_path(path);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Failed to parse YAML"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Failed to parse YAML")
+        );
     }
 
     #[test]
@@ -313,10 +319,12 @@ query_timeout_seconds: 0
 
         let result = Config::load_from_path(path);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Query timeout must be greater than 0"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Query timeout must be greater than 0")
+        );
     }
 
     #[test]
@@ -331,9 +339,11 @@ max_concurrent_queries: 0
 
         let result = Config::load_from_path(path);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Max concurrent queries must be greater than 0"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Max concurrent queries must be greater than 0")
+        );
     }
 }

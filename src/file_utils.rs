@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
@@ -315,10 +315,12 @@ mod tests {
     fn test_validate_identifier_invalid_chars() {
         let result = FileUtils::validate_identifier("sales.db", "database");
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("invalid characters"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("invalid characters")
+        );
     }
 
     #[test]
@@ -368,10 +370,12 @@ mod tests {
 
         let result = FileUtils::validate_sql_file_path(&file_path);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("does not have .sql extension"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("does not have .sql extension")
+        );
     }
 
     #[test]
