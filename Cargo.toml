@@ -1,7 +1,7 @@
 [package]
 name = "athenadef"
 version = "0.1.1"
-edition = "2021"
+edition = "2024"
 authors = ["Shia <rise.shia@gmail.com>"]
 license = "MIT"
 description = "A CLI tool for AWS Athena schema management"
