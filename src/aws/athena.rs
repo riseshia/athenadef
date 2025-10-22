@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use aws_sdk_athena::{
-    types::{QueryExecutionState, ResultConfiguration},
     Client as AthenaClient,
+    types::{QueryExecutionState, ResultConfiguration},
 };
 use std::sync::Arc;
 use std::time::Duration;

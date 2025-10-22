@@ -720,9 +720,9 @@ CREATE TABLE test (
         use crate::types::query_execution::{QueryExecutionStatus, QueryResult, QueryRow};
 
         let mut result = QueryResult::new("test-id".to_string(), QueryExecutionStatus::Succeeded);
-        result.rows.push(QueryRow::new(
-            vec!["CREATE TABLE test (id int)".to_string()],
-        ));
+        result.rows.push(QueryRow::new(vec![
+            "CREATE TABLE test (id int)".to_string(),
+        ]));
 
         let ddl = extract_ddl_from_query_result(&result);
         assert_eq!(ddl, Some("CREATE TABLE test (id int)".to_string()));

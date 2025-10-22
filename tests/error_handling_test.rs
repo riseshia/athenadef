@@ -266,9 +266,11 @@ fn test_hidden_files_and_directories() {
 
     // Hidden directories and files might be ignored depending on implementation
     // At minimum, regular files should be found
-    assert!(files
-        .values()
-        .any(|sql_file| sql_file.database_name == "db1"));
+    assert!(
+        files
+            .values()
+            .any(|sql_file| sql_file.database_name == "db1")
+    );
 }
 
 #[test]

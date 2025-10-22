@@ -248,7 +248,7 @@ mod tests {
 
         // Add data rows with DDL (SHOW CREATE TABLE returns multiple rows, no header)
         result.rows.push(QueryRow::new(vec![
-            "CREATE EXTERNAL TABLE `default.test`(".to_string()
+            "CREATE EXTERNAL TABLE `default.test`(".to_string(),
         ]));
         result
             .rows
@@ -271,9 +271,9 @@ mod tests {
     #[test]
     fn test_extract_ddl_from_query_result_header_only() {
         let mut result = QueryResult::new("exec-123".to_string(), QueryExecutionStatus::Succeeded);
-        result.rows.push(QueryRow::new(
-            vec!["CREATE EXTERNAL TABLE test".to_string()],
-        ));
+        result.rows.push(QueryRow::new(vec![
+            "CREATE EXTERNAL TABLE test".to_string(),
+        ]));
 
         let ddl = extract_ddl_from_query_result(&result);
         assert_eq!(ddl, Some("CREATE EXTERNAL TABLE test".to_string()));
@@ -294,13 +294,13 @@ mod tests {
 
         // SHOW CREATE TABLE returns each line as a separate row (no header)
         result.rows.push(QueryRow::new(vec![
-            "CREATE EXTERNAL TABLE `default.test`(".to_string()
+            "CREATE EXTERNAL TABLE `default.test`(".to_string(),
         ]));
-        result.rows.push(QueryRow::new(
-            vec!["  `id` bigint COMMENT '', ".to_string()],
-        ));
         result.rows.push(QueryRow::new(vec![
-            "  `name` string COMMENT '')".to_string()
+            "  `id` bigint COMMENT '', ".to_string(),
+        ]));
+        result.rows.push(QueryRow::new(vec![
+            "  `name` string COMMENT '')".to_string(),
         ]));
         result
             .rows

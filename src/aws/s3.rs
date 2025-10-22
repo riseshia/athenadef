@@ -214,40 +214,48 @@ mod tests {
     fn test_parse_s3_url_no_prefix() {
         let result = S3Manager::parse_s3_url("my-bucket/path/to/file.csv");
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("must start with s3://"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("must start with s3://")
+        );
     }
 
     #[test]
     fn test_parse_s3_url_no_key() {
         let result = S3Manager::parse_s3_url("s3://my-bucket");
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("expected s3://bucket/key"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("expected s3://bucket/key")
+        );
     }
 
     #[test]
     fn test_parse_s3_url_empty_bucket() {
         let result = S3Manager::parse_s3_url("s3:///path/to/file.csv");
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("bucket and key must not be empty"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("bucket and key must not be empty")
+        );
     }
 
     #[test]
     fn test_parse_s3_url_empty_key() {
         let result = S3Manager::parse_s3_url("s3://my-bucket/");
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("bucket and key must not be empty"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("bucket and key must not be empty")
+        );
     }
 
     #[test]
