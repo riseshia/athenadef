@@ -29,7 +29,7 @@ regex = "1"
 uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]
-mockall = "0.14"
+mockall = "0.15"
 tempfile = "3"
 similar-asserts = "2"
 tokio-test = "0.4"
